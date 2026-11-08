@@ -5,87 +5,343 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UaSwitch — перемикач розкладок УКР/АНГЛ</title>
 <meta name="description" content="Безкоштовний перемикач розкладок для Windows: виправляє текст, набраний не в тій розкладці (ghbdsn → привіт). Українська — основна мова.">
+<meta property="og:title" content="UaSwitch — перемикач розкладок УКР/АНГЛ">
+<meta property="og:description" content="Набрали ghbdsn замість привіт? UaSwitch виправить сам. Безкоштовно, відкритий код.">
+<meta property="og:image" content="icon.png">
 <link rel="icon" href="icon.png">
 <style>
-:root{--bg:#f7f8fa;--card:#fff;--text:#16181d;--muted:#5b6170;--line:#e3e6eb;--accent:#0057b7;--accent-text:#fff;--yellow:#ffd500;--code:#eef1f5}
-@media (prefers-color-scheme:dark){:root{--bg:#111318;--card:#1a1d24;--text:#e8eaee;--muted:#9aa1ae;--line:#2a2f39;--accent:#3d8bff;--accent-text:#fff;--code:#232833}}
+:root{
+  --bg:#f6f7f9;--card:#fff;--text:#15171c;--muted:#5b6170;--line:#e2e5ea;
+  --accent:#0057b7;--accent-hover:#004a9c;--yellow:#ffd500;--code:#eceff4;
+  --hero-a:#0057b7;--hero-b:#003f86;--shadow:0 18px 50px -18px rgba(16,24,40,.35);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f1115;--card:#181b21;--text:#e8eaee;--muted:#9aa1ae;--line:#272c35;
+  --accent:#3d8bff;--accent-hover:#5a9cff;--code:#222731;--hero-a:#0b3f87;--hero-b:#082c5e;--shadow:0 18px 50px -18px rgba(0,0,0,.8);
+}}
 *{box-sizing:border-box}
+html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 "Segoe UI",system-ui,-apple-system,sans-serif}
-.wrap{max-width:760px;margin:0 auto;padding:48px 16px 64px}
-header{display:flex;align-items:center;gap:14px}
-header img{width:56px;height:56px}
-h1{font-size:30px;line-height:1.2;margin:0}
-.lead{font-size:19px;color:var(--muted);margin:20px 0 28px}
-.demo{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;font:600 20px/1 Consolas,"Cascadia Mono",monospace;margin:0 0 28px}
-.demo i{font-style:normal;display:inline-flex;gap:10px;align-items:center}
-.demo span{background:var(--code);padding:10px 14px;border-radius:8px}
-.demo b{color:var(--muted);font-weight:400}
-.btn{display:inline-block;background:var(--accent);color:var(--accent-text);text-decoration:none;font-weight:600;padding:14px 26px;border-radius:10px;font-size:17px}
-.btn:hover{filter:brightness(1.08)}
-.meta{color:var(--muted);font-size:14px;margin:12px 0 40px}
-.meta a{color:inherit}
-h2{font-size:20px;margin:40px 0 12px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media (max-width:600px){.grid{grid-template-columns:1fr}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
-.card h3{margin:0 0 6px;font-size:16px}
+a{color:var(--accent)}
+.wrap{max-width:980px;margin:0 auto;padding:0 16px}
+
+/* ---------- Hero ---------- */
+.hero{background:linear-gradient(160deg,var(--hero-a),var(--hero-b));color:#fff;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;background:var(--yellow)}
+.hero .wrap{display:grid;grid-template-columns:1.05fr 1fr;gap:40px;align-items:center;padding-top:56px;padding-bottom:72px}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:22px}
+.brand img{width:64px;height:64px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.25))}
+.brand span{font-size:30px;font-weight:700;letter-spacing:-.01em}
+.hero h1{font-size:40px;line-height:1.12;margin:0 0 16px;letter-spacing:-.02em}
+.hero h1 em{font-style:normal;color:var(--yellow)}
+.hero p{font-size:18px;opacity:.9;margin:0 0 28px;max-width:30em}
+.btn{display:inline-flex;align-items:center;gap:10px;background:var(--yellow);color:#14181f;text-decoration:none;font-weight:700;padding:15px 26px;border-radius:12px;font-size:17px;box-shadow:0 8px 24px -8px rgba(0,0,0,.45);transition:transform .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn svg{width:20px;height:20px}
+.meta{font-size:14px;opacity:.85;margin-top:14px}
+.meta a{color:#fff}
+
+/* ---------- Демо-вікно ---------- */
+.win{background:#fff;color:#1b1b1f;border-radius:10px;box-shadow:var(--shadow);overflow:hidden;border:1px solid rgba(0,0,0,.08)}
+.win-title{display:flex;align-items:center;gap:8px;height:34px;padding:0 0 0 12px;font-size:12.5px;color:#444;background:#f3f3f3;border-bottom:1px solid #e5e5e5}
+.win-title .ctrls{margin-left:auto;display:flex}
+.win-title .ctrls i{width:44px;height:34px;display:grid;place-items:center;font-style:normal;color:#555;font-size:13px}
+.win-title img{width:16px;height:16px}
+.editor{min-height:170px;padding:16px 18px;font:17px/1.65 "Segoe UI",system-ui,sans-serif;white-space:pre-wrap;word-break:break-word}
+.editor .hl{background:#d9f2e2;border-radius:3px;transition:background 1.2s}
+.editor .hl.fade{background:transparent}
+.caret{display:inline-block;width:1.5px;height:1.15em;background:#111;vertical-align:-3px;margin-left:1px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.taskbar{display:flex;align-items:center;gap:10px;justify-content:flex-end;height:42px;padding:0 14px;background:#eef1f6;border-top:1px solid #e1e4ea;font-size:12px;color:#333}
+.taskbar img{width:28px;height:28px;transition:transform .2s}
+.taskbar img.pop{transform:scale(1.18)}
+.taskbar .clock{text-align:right;line-height:1.25}
+.caption{margin-top:14px;font-size:15px;color:#fff;opacity:.92;min-height:3em;display:flex;gap:10px;align-items:flex-start}
+.caption b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:50%;background:var(--yellow);color:#14181f;font-size:13px}
+
+/* ---------- Секції ---------- */
+section{padding:64px 0 8px}
+h2{font-size:28px;line-height:1.2;margin:0 0 8px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 28px;font-size:17px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+.card .ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--code);margin-bottom:12px;font-size:19px}
+.card h3{margin:0 0 6px;font-size:17px}
 .card p{margin:0;color:var(--muted);font-size:15px}
-ol{padding-left:22px}
-li{margin:6px 0}
-code{background:var(--code);padding:2px 6px;border-radius:5px;font-size:14px}
-footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+code,kbd{background:var(--code);padding:1px 6px;border-radius:5px;font:13.5px Consolas,"Cascadia Mono",monospace}
+kbd{border:1px solid var(--line);border-bottom-width:2px}
+
+/* Стани іконки */
+.states{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.state{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;text-align:center}
+.state img{width:56px;height:56px}
+.state h3{margin:10px 0 4px;font-size:16px}
+.state p{margin:0;color:var(--muted);font-size:14px}
+
+/* Вікно налаштувань (відтворення інтерфейсу програми) */
+.settings-row{display:grid;grid-template-columns:1fr 1.1fr;gap:40px;align-items:center}
+.dlg{background:#fff;color:#1b1b1f;border-radius:8px;box-shadow:var(--shadow);border:1px solid rgba(0,0,0,.1);font:13px/1.4 "Segoe UI",system-ui,sans-serif;overflow:hidden;max-width:520px}
+.dlg .win-title{background:#fff;border-bottom:0}
+.dlg-body{padding:6px 12px 12px}
+.tabs{display:flex;gap:2px;border-bottom:1px solid #d6d6d6;padding-left:2px}
+.tabs span{padding:5px 10px;border:1px solid transparent;border-bottom:0;border-radius:3px 3px 0 0;color:#333;white-space:nowrap}
+.tabs span.on{background:#fff;border-color:#d6d6d6;margin-bottom:-1px;position:relative}
+.pane{border:1px solid #d6d6d6;border-top:0;padding:12px 14px 14px}
+.chk{display:flex;gap:8px;align-items:flex-start;margin:6px 0}
+.chk i{flex:none;width:14px;height:14px;border-radius:3px;background:#0067c0;margin-top:2px;position:relative}
+.chk i::after{content:"";position:absolute;left:4.5px;top:1.5px;width:3.5px;height:7px;border:solid #fff;border-width:0 1.8px 1.8px 0;transform:rotate(45deg)}
+.dlg .lnk{color:#0067c0;text-decoration:underline;margin-top:12px;display:inline-block}
+.dlg .hint{color:#6d6d6d;margin-top:10px}
+.dlg-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.dlg-btns span{min-width:92px;text-align:center;padding:5px 12px;border:1px solid #c9c9c9;border-radius:4px;background:#fbfbfb}
+.dlg-btns span.pri{background:#0067c0;border-color:#0067c0;color:#fff}
+
+/* Справжні скріншоти */
+.shot-tray{margin:0 0 18px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center}
+.shot-tray img{max-width:100%;height:auto;border-radius:8px}
+.shot-tray figcaption{color:var(--muted);font-size:14px;margin-top:8px}
+.gallery{display:flex;flex-direction:column;align-items:center;gap:14px}
+.seg{display:inline-flex;background:var(--code);border-radius:10px;padding:4px;gap:4px}
+.seg button{border:0;background:transparent;color:var(--muted);font:600 14px "Segoe UI",system-ui,sans-serif;padding:8px 14px;border-radius:7px;cursor:pointer}
+.seg button[aria-selected="true"]{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.shot{max-width:100%;height:auto;border-radius:10px;box-shadow:var(--shadow)}
+
+/* Встановлення */
+.steps{counter-reset:s;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;list-style:none;padding:0;margin:0}
+.steps li{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 18px 18px;position:relative;font-size:15px}
+.steps li::before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;margin-bottom:10px}
+
+.privacy{display:flex;gap:18px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px}
+.privacy .shield{flex:none;width:48px;height:48px;border-radius:12px;background:var(--code);display:grid;place-items:center;font-size:24px}
+.privacy p{margin:0;color:var(--muted)}
+
+.cta{text-align:center;padding:72px 0 24px}
+.cta .btn{background:var(--accent);color:#fff}
+.cta .btn:hover{background:var(--accent-hover)}
+footer{margin-top:40px;padding:24px 0 40px;border-top:1px solid var(--line);color:var(--muted);font-size:14px;text-align:center}
 footer a{color:inherit}
-.flag{display:inline-block;width:18px;height:12px;vertical-align:-1px;background:linear-gradient(var(--accent) 50%,var(--yellow) 50%);border-radius:2px;margin-left:4px}
+
+@media (max-width:860px){
+  .hero .wrap,.settings-row{grid-template-columns:1fr}
+  .grid{grid-template-columns:1fr 1fr}
+  .states,.steps{grid-template-columns:1fr 1fr}
+  .hero h1{font-size:32px}
+}
+@media (max-width:540px){
+  .grid,.states,.steps{grid-template-columns:1fr}
+  .hero .wrap{padding-top:36px}
+  .tabs span{padding:5px 6px;font-size:12px}
+}
+@media (prefers-reduced-motion:reduce){.caret{animation:none}.btn,.taskbar img{transition:none}}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <img src="icon.png" alt="">
-    <h1>UaSwitch</h1>
-  </header>
 
-  <p class="lead">Безкоштовний перемикач розкладок для Windows. Набрали текст не в тій розкладці? Програма виправить його сама і перемкне мову. Українська тут основна мова, а не додаток<span class="flag" aria-hidden="true"></span></p>
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <div class="brand"><img src="icon.png" alt=""><span>UaSwitch</span></div>
+      <h1>Набрали <em>ghbdsn</em>?<br>Програма зробить з цього «привіт».</h1>
+      <p>Безкоштовний перемикач розкладок для Windows. Виправляє текст, набраний не в тій розкладці, і сам перемикає мову. Українська тут основна мова, а не додаток.</p>
+      <a class="btn js-download" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 21h16"/></svg>
+        Завантажити для Windows
+      </a>
+      <div class="meta">Windows 10 / 11 · без встановлення · без реклами · <a class="js-source" href="#">відкритий код</a></div>
+    </div>
 
-  <div class="demo"><i><span>ghbdsn</span><b>→</b><span>привіт</span></i><i><span>руддщ</span><b>→</b><span>hello</span></i></div>
-
-  <a class="btn" id="download" href="#">Завантажити для Windows</a>
-  <p class="meta">Windows 10 / 11 · без встановлення · без реклами · <a id="source" href="#">відкритий код на GitHub</a></p>
-
-  <h2>Що вміє</h2>
-  <div class="grid">
-    <div class="card"><h3>Автоматично</h3><p>Виправляє слово після пробілу, а часто вже на 4-й літері.</p></div>
-    <div class="card"><h3>Вручну</h3><p><code>Pause</code> або двічі <code>Shift</code> — останнє слово, двічі <code>Ctrl</code> — виділений текст.</p></div>
-    <div class="card"><h3>Регістр і коми</h3><p><code>пРИВІТ</code> → <code>Привіт</code>, кома перед «що», «щоб», «але», «який».</p></div>
-    <div class="card"><h3>Не заважає</h3><p>Не чіпає коди, абревіатури й email. <code>Backspace</code> одразу скасовує виправлення.</p></div>
+    <div>
+      <div class="win" aria-label="Демонстрація роботи програми">
+        <div class="win-title"><img src="icon.png" alt="">Без назви — Блокнот<div class="ctrls"><i>—</i><i>☐</i><i>✕</i></div></div>
+        <div class="editor" id="editor"></div>
+        <div class="taskbar"><img id="tray" src="tray-en.png" alt="Іконка розкладки"><div class="clock">21:46<br>08.11.2026</div></div>
+      </div>
+      <div class="caption" id="caption" aria-live="polite"></div>
+    </div>
   </div>
+</header>
 
-  <h2>Як встановити</h2>
-  <ol>
-    <li>Завантажте архів і розпакуйте в постійну папку, наприклад <code>C:\Programs\UaSwitch</code>.</li>
-    <li>Права кнопка на <code>UaSwitch.exe</code> → «Властивості» → галочка «Розблокувати» → OK. Так Windows не показуватиме попередження.</li>
-    <li>Запустіть програму. Біля годинника з'явиться іконка <code>UA</code>/<code>EN</code>.</li>
-    <li>Подвійний клік по іконці → увімкніть «Запускати разом з Windows».</li>
-  </ol>
+<main class="wrap">
 
-  <h2>Приватність</h2>
-  <p>Набраний текст ніде не зберігається і нікуди не передається: програма пам'ятає лише поточне слово в оперативній пам'яті й не підключається до інтернету. Код відкритий, кожен може це перевірити.</p>
+  <section>
+    <h2>Що вміє</h2>
+    <p class="sub">Працює у Word, Excel, Outlook, браузері, Telegram — будь-де, де ви набираєте текст.</p>
+    <div class="grid">
+      <div class="card"><div class="ico">⚡</div><h3>Виправляє на ходу</h3><p>Часто вже на 4-й літері: <code>ghbd</code> → <code>прив</code>, далі ви набираєте в правильній розкладці.</p></div>
+      <div class="card"><div class="ico">⌨️</div><h3>Вручну, коли треба</h3><p><kbd>Pause</kbd> або двічі <kbd>Shift</kbd> — останнє слово. Двічі <kbd>Ctrl</kbd> — виділений текст.</p></div>
+      <div class="card"><div class="ico">↩️</div><h3>Легко скасувати</h3><p><kbd>Backspace</kbd> одразу після виправлення повертає як було й запам'ятовує слово.</p></div>
+      <div class="card"><div class="ico">Aa</div><h3>Регістр</h3><p>Випадковий Caps Lock: <code>пРИВІТ</code> → <code>Привіт</code>. Дві великі: <code>ПРивіт</code> → <code>Привіт</code>.</p></div>
+      <div class="card"><div class="ico">,</div><h3>Коми</h3><p><code>знаю що</code> → <code>знаю, що</code>. Перед «що», «щоб», «але», «який». «Тому що» не чіпає.</p></div>
+      <div class="card"><div class="ico">🛡️</div><h3>Не заважає в роботі</h3><p>Не чіпає коди, номери, абревіатури й email. Можна вимкнути в окремих програмах.</p></div>
+    </div>
+  </section>
 
-  <footer>
-    Код — ліцензія MIT. Частотні словники — <a href="https://github.com/rspeer/wordfreq">wordfreq</a>, CC BY-SA 4.0.
-    Знайшли проблему? <a id="issues" href="#">Напишіть нам</a>.
-  </footer>
-</div>
+  <section>
+    <h2>Іконка біля годинника</h2>
+    <p class="sub">Завжди видно, яка розкладка зараз увімкнена.</p>
+    <figure class="shot-tray">
+      <img src="screen-tray.png" alt="Панель задач Windows 11: іконка UaSwitch «UA» поруч з індикатором мови «УКР»" width="457" height="142" loading="lazy">
+      <figcaption>Так виглядає на панелі задач Windows 11 — поруч зі стандартним індикатором мови.</figcaption>
+    </figure>
+    <div class="states">
+      <div class="state"><img src="tray-ua.png" alt=""><h3>Українська</h3><p>Синьо-жовта іконка</p></div>
+      <div class="state"><img src="tray-en.png" alt=""><h3>Англійська</h3><p>Темна іконка</p></div>
+      <div class="state"><img src="tray-ua-flash.png" alt=""><h3>Щойно виправлено</h3><p>На мить стає зеленою, лунає тихий клік</p></div>
+      <div class="state"><img src="tray-off.png" alt=""><h3>Вимкнено</h3><p>Сіра іконка</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="settings-row">
+      <div>
+        <h2>Прості налаштування</h2>
+        <p class="sub">Подвійний клік по іконці відкриває вікно налаштувань. Кожну функцію можна вимкнути окремо.</p>
+        <p class="sub" style="font-size:15px">Вкладки «Програми» і «Слова-винятки» дозволяють вказати, де і що програма не повинна виправляти. А меню іконки має пункт «Не виправляти в цій програмі».</p>
+      </div>
+      <div class="gallery">
+        <div class="seg" role="tablist">
+          <button role="tab" aria-selected="true" data-img="screen-hotkeys.png" data-alt="Вкладка «Гарячі клавіші»">Гарячі клавіші</button>
+          <button role="tab" aria-selected="false" data-img="screen-apps.png" data-alt="Вкладка «Програми»">Програми</button>
+        </div>
+        <img id="shot" class="shot" src="screen-hotkeys.png" alt="Вкладка «Гарячі клавіші»" width="515" height="512" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Як встановити</h2>
+    <p class="sub">Дві хвилини, без інсталятора.</p>
+    <ol class="steps">
+      <li>Завантажте архів і розпакуйте в постійну папку, наприклад <code>C:\Programs\UaSwitch</code>.</li>
+      <li>Права кнопка на <code>UaSwitch.exe</code> → «Властивості» → галочка «Розблокувати» → OK.</li>
+      <li>Запустіть програму. Біля годинника з'явиться іконка <code>UA</code> / <code>EN</code>.</li>
+      <li>Подвійний клік по іконці → «Запускати разом з Windows».</li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="privacy">
+      <div class="shield">🔒</div>
+      <div>
+        <h2 style="font-size:22px">Ваш текст нікуди не потрапляє</h2>
+        <p>Програма пам'ятає лише поточне слово в оперативній пам'яті й не підключається до інтернету. На диск потрапляють тільки налаштування та слова, які ви самі додали у винятки. Код відкритий — це може перевірити будь-хто.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta">
+    <a class="btn js-download" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 21h16"/></svg>
+      Завантажити UaSwitch
+    </a>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    Код — ліцензія MIT · Частотні словники — <a href="https://github.com/rspeer/wordfreq">wordfreq</a>, CC BY-SA 4.0 ·
+    <a class="js-source" href="#">GitHub</a> · Знайшли проблему? <a class="js-issues" href="#">Напишіть нам</a>
+  </div>
+</footer>
+
 <script>
-// Посилання будуються з адреси сторінки (користувач.github.io/репозиторій), тож нічого не треба редагувати вручну
+// Посилання будуються з адреси сторінки (користувач.github.io/репозиторій) — редагувати вручну не треба
 (function () {
+  if (!/github\.io$/.test(location.hostname)) return;
   var user = location.hostname.split('.')[0];
   var repo = location.pathname.split('/').filter(Boolean)[0] || 'UaSwitch';
-  if (!/github\.io$/.test(location.hostname)) return;
   var base = 'https://github.com/' + user + '/' + repo;
-  document.getElementById('download').href = base + '/releases/latest/download/UaSwitch-win.zip';
-  document.getElementById('source').href = base;
-  document.getElementById('issues').href = base + '/issues';
+  function set(cls, href) { document.querySelectorAll(cls).forEach(function (a) { a.href = href; }); }
+  set('.js-download', base + '/releases/latest/download/UaSwitch-win.zip');
+  set('.js-source', base);
+  set('.js-issues', base + '/issues');
+})();
+
+// Перемикач скріншотів налаштувань
+document.querySelectorAll('.seg button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.querySelectorAll('.seg button').forEach(function (x) { x.setAttribute('aria-selected', x === b); });
+    var img = document.getElementById('shot'); img.src = b.dataset.img; img.alt = b.dataset.alt;
+  });
+});
+
+// Демонстрація: набір тексту, виправлення, зміна іконки
+(function () {
+  var ed = document.getElementById('editor'), tray = document.getElementById('tray'), cap = document.getElementById('caption');
+  var lines = [''], hl = null, layout = 'EN';
+  var finalText = 'Привіт, як справи?\nЗнаю, що встигнемо.\nПривіт від колеги ';
+
+  function render() {
+    ed.textContent = '';
+    lines.forEach(function (l, i) {
+      if (i) ed.appendChild(document.createTextNode('\n'));
+      if (hl && hl.line === i) {
+        ed.appendChild(document.createTextNode(l.slice(0, hl.start)));
+        var s = document.createElement('span'); s.className = 'hl'; s.textContent = l.slice(hl.start, hl.start + hl.len);
+        ed.appendChild(s);
+        setTimeout(function () { s.classList.add('fade'); }, 60);
+        ed.appendChild(document.createTextNode(l.slice(hl.start + hl.len)));
+      } else ed.appendChild(document.createTextNode(l));
+    });
+    var c = document.createElement('span'); c.className = 'caret'; ed.appendChild(c);
+  }
+  function setTray(lang, flash) {
+    layout = lang;
+    tray.src = 'tray-' + lang.toLowerCase() + (flash ? '-flash' : '') + '.png';
+    tray.classList.toggle('pop', !!flash);
+  }
+  function caption(n, t) { cap.innerHTML = '<b>' + n + '</b><span>' + t + '</span>'; }
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    lines = finalText.split('\n'); render(); setTray('UA');
+    caption('✓', 'Текст, набраний не в тій розкладці, виправляється автоматично.');
+    return;
+  }
+
+  var q = [];
+  function wait(ms) { q.push(function (next) { setTimeout(next, ms); }); }
+  function type(str, speed) {
+    str.split('').forEach(function (ch) {
+      q.push(function (next) {
+        if (ch === '\n') lines.push(''); else lines[lines.length - 1] += ch;
+        hl = null; render(); setTimeout(next, speed || 95);
+      });
+    });
+  }
+  function fix(len, text, lang, extra) {
+    q.push(function (next) {
+      var i = lines.length - 1, l = lines[i];
+      lines[i] = l.slice(0, l.length - len) + text;
+      hl = { line: i, start: lines[i].length - text.length + (extra || 0), len: text.length - (extra || 0) };
+      render(); if (lang) setTray(lang, true); else setTray(layout, true);
+      setTimeout(function () { setTray(layout, false); next(); }, 520);
+    });
+  }
+  function cap$(n, t) { q.push(function (next) { caption(n, t); next(); }); }
+  function reset() { q.push(function (next) { lines = ['']; hl = null; setTray('EN'); render(); next(); }); }
+
+  // Сцена 1: набір в англійській розкладці, виправлення на 4-й літері
+  reset();
+  cap$(1, 'Почали набирати «Привіт», але увімкнена англійська розкладка…');
+  wait(700); type('Ghbd', 170); wait(250);
+  cap$(1, 'На 4-й літері UaSwitch виправив слово і перемкнув розкладку на UA.');
+  fix(4, 'Прив', 'UA'); wait(500);
+  type('іт, як справи?'); wait(1300);
+
+  // Сцена 2: кома перед «що»
+  cap$(2, 'Кома перед «що» ставиться сама.');
+  type('\nЗнаю що '); wait(150);
+  fix(4, ', що ', null, 0); wait(400);
+  type('встигнемо.'); wait(1300);
+
+  // Сцена 3: випадковий Caps Lock
+  cap$(3, 'Забули вимкнути Caps Lock? Регістр виправиться після пробілу.');
+  type('\nпРИВІТ', 140); type(' '); wait(200);
+  fix(7, 'Привіт ', null); wait(300);
+  type('від колеги '); wait(2600);
+
+  var i = 0;
+  (function run() { var f = q[i++ % q.length]; f(run); })();
 })();
 </script>
 </body>
