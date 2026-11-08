@@ -24,17 +24,17 @@ internal sealed class SettingsForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(500, 470);
+        ClientSize = new Size(500, 540);
         ShowInTaskbar = true;
         try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
-        var tabs = new TabControl { Dock = DockStyle.Top, Height = 420 };
+        var tabs = new TabControl { Dock = DockStyle.Top, Height = 490 };
 
         // ---- Загальне ----
         var general = Page("Загальне");
         _enabled = Check(general, "Програма увімкнена", _s.Enabled);
         _auto = Check(general, "Автоматично виправляти слова після пробілу", _s.AutoMode);
-        _early = Check(general, "Перемикати вже на 4-й літері, якщо початок слова однозначний", _s.EarlySwitch);
+        _early = Check(general, "Виправляти слово вже на 4-й літері, не чекаючи пробілу", _s.EarlySwitch);
         _comma = Check(general, "Ставити кому перед «що», «щоб», «але», «який»…", _s.AutoComma);
         _caps = Check(general, "Виправляти випадковий Caps Lock  (пРИВІТ → Привіт)", _s.FixCaps);
         _twoCaps = Check(general, "Виправляти дві великі на початку  (ПРивіт → Привіт)", _s.FixTwoCaps);
@@ -68,8 +68,8 @@ internal sealed class SettingsForm : Form
         tabs.TabPages.AddRange(new[] { general, keys, apps, words });
         Controls.Add(tabs);
 
-        var ok = new Button { Text = "Зберегти", DialogResult = DialogResult.OK, Size = new Size(100, 30), Location = new Point(282, 430) };
-        var cancel = new Button { Text = "Скасувати", DialogResult = DialogResult.Cancel, Size = new Size(100, 30), Location = new Point(390, 430) };
+        var ok = new Button { Text = "Зберегти", DialogResult = DialogResult.OK, Size = new Size(100, 30), Location = new Point(282, 500) };
+        var cancel = new Button { Text = "Скасувати", DialogResult = DialogResult.Cancel, Size = new Size(100, 30), Location = new Point(390, 500) };
         ok.Click += (_, _) => SaveAll();
         Controls.Add(ok);
         Controls.Add(cancel);
