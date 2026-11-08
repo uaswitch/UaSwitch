@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UaSwitch — перемикач розкладок УКР/АНГЛ</title>
+<meta name="description" content="Безкоштовний перемикач розкладок для Windows: виправляє текст, набраний не в тій розкладці (ghbdsn → привіт). Українська — основна мова.">
+<link rel="icon" href="icon.png">
+<style>
+:root{--bg:#f7f8fa;--card:#fff;--text:#16181d;--muted:#5b6170;--line:#e3e6eb;--accent:#0057b7;--accent-text:#fff;--yellow:#ffd500;--code:#eef1f5}
+@media (prefers-color-scheme:dark){:root{--bg:#111318;--card:#1a1d24;--text:#e8eaee;--muted:#9aa1ae;--line:#2a2f39;--accent:#3d8bff;--accent-text:#fff;--code:#232833}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 "Segoe UI",system-ui,-apple-system,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:48px 16px 64px}
+header{display:flex;align-items:center;gap:14px}
+header img{width:56px;height:56px}
+h1{font-size:30px;line-height:1.2;margin:0}
+.lead{font-size:19px;color:var(--muted);margin:20px 0 28px}
+.demo{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;font:600 20px/1 Consolas,"Cascadia Mono",monospace;margin:0 0 28px}
+.demo i{font-style:normal;display:inline-flex;gap:10px;align-items:center}
+.demo span{background:var(--code);padding:10px 14px;border-radius:8px}
+.demo b{color:var(--muted);font-weight:400}
+.btn{display:inline-block;background:var(--accent);color:var(--accent-text);text-decoration:none;font-weight:600;padding:14px 26px;border-radius:10px;font-size:17px}
+.btn:hover{filter:brightness(1.08)}
+.meta{color:var(--muted);font-size:14px;margin:12px 0 40px}
+.meta a{color:inherit}
+h2{font-size:20px;margin:40px 0 12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:600px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card h3{margin:0 0 6px;font-size:16px}
+.card p{margin:0;color:var(--muted);font-size:15px}
+ol{padding-left:22px}
+li{margin:6px 0}
+code{background:var(--code);padding:2px 6px;border-radius:5px;font-size:14px}
+footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+footer a{color:inherit}
+.flag{display:inline-block;width:18px;height:12px;vertical-align:-1px;background:linear-gradient(var(--accent) 50%,var(--yellow) 50%);border-radius:2px;margin-left:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="icon.png" alt="">
+    <h1>UaSwitch</h1>
+  </header>
+
+  <p class="lead">Безкоштовний перемикач розкладок для Windows. Набрали текст не в тій розкладці? Програма виправить його сама і перемкне мову. Українська тут основна мова, а не додаток<span class="flag" aria-hidden="true"></span></p>
+
+  <div class="demo"><i><span>ghbdsn</span><b>→</b><span>привіт</span></i><i><span>руддщ</span><b>→</b><span>hello</span></i></div>
+
+  <a class="btn" id="download" href="#">Завантажити для Windows</a>
+  <p class="meta">Windows 10 / 11 · без встановлення · без реклами · <a id="source" href="#">відкритий код на GitHub</a></p>
+
+  <h2>Що вміє</h2>
+  <div class="grid">
+    <div class="card"><h3>Автоматично</h3><p>Виправляє слово після пробілу, а часто вже на 4-й літері.</p></div>
+    <div class="card"><h3>Вручну</h3><p><code>Pause</code> або двічі <code>Shift</code> — останнє слово, двічі <code>Ctrl</code> — виділений текст.</p></div>
+    <div class="card"><h3>Регістр і коми</h3><p><code>пРИВІТ</code> → <code>Привіт</code>, кома перед «що», «щоб», «але», «який».</p></div>
+    <div class="card"><h3>Не заважає</h3><p>Не чіпає коди, абревіатури й email. <code>Backspace</code> одразу скасовує виправлення.</p></div>
+  </div>
+
+  <h2>Як встановити</h2>
+  <ol>
+    <li>Завантажте архів і розпакуйте в постійну папку, наприклад <code>C:\Programs\UaSwitch</code>.</li>
+    <li>Права кнопка на <code>UaSwitch.exe</code> → «Властивості» → галочка «Розблокувати» → OK. Так Windows не показуватиме попередження.</li>
+    <li>Запустіть програму. Біля годинника з'явиться іконка <code>UA</code>/<code>EN</code>.</li>
+    <li>Подвійний клік по іконці → увімкніть «Запускати разом з Windows».</li>
+  </ol>
+
+  <h2>Приватність</h2>
+  <p>Набраний текст ніде не зберігається і нікуди не передається: програма пам'ятає лише поточне слово в оперативній пам'яті й не підключається до інтернету. Код відкритий, кожен може це перевірити.</p>
+
+  <footer>
+    Код — ліцензія MIT. Частотні словники — <a href="https://github.com/rspeer/wordfreq">wordfreq</a>, CC BY-SA 4.0.
+    Знайшли проблему? <a id="issues" href="#">Напишіть нам</a>.
+  </footer>
+</div>
+<script>
+// Посилання будуються з адреси сторінки (користувач.github.io/репозиторій), тож нічого не треба редагувати вручну
+(function () {
+  var user = location.hostname.split('.')[0];
+  var repo = location.pathname.split('/').filter(Boolean)[0] || 'UaSwitch';
+  if (!/github\.io$/.test(location.hostname)) return;
+  var base = 'https://github.com/' + user + '/' + repo;
+  document.getElementById('download').href = base + '/releases/latest/download/UaSwitch-win.zip';
+  document.getElementById('source').href = base;
+  document.getElementById('issues').href = base + '/issues';
+})();
+</script>
+</body>
+</html>
