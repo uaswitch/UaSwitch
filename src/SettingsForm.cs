@@ -70,7 +70,9 @@ internal sealed class SettingsForm : Form
 
         var ok = new Button { Text = "Зберегти", DialogResult = DialogResult.OK, Size = new Size(100, 30), Location = new Point(282, 500) };
         var cancel = new Button { Text = "Скасувати", DialogResult = DialogResult.Cancel, Size = new Size(100, 30), Location = new Point(390, 500) };
-        ok.Click += (_, _) => SaveAll();
+        // Вікно немодальне (Show), тому закриваємо його явно: DialogResult на кнопках тут не спрацьовує
+        ok.Click += (_, _) => { SaveAll(); DialogResult = DialogResult.OK; Close(); };
+        cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
         Controls.Add(ok);
         Controls.Add(cancel);
         AcceptButton = ok;
