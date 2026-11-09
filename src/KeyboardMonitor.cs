@@ -28,8 +28,14 @@ internal sealed class WordBuffer
     public bool AutoLayout;
     public CaseFix AutoCase;
     public string? AutoOriginal;
-    /// <summary>Попереднє слово (як на екрані), якщо між ними рівно один пробіл — для правил коми.</summary>
-    public string? PrevText;
+    /// <summary>Попередні слова рядка (як на екрані, кожне через один пробіл) — для ком і контексту мови.</summary>
+    public readonly List<string> Recent = new();
+    /// <summary>Як скасувати вставку коми чи пробілу: скільки символів стерти і що набрати замість них.</summary>
+    public int UndoErase;
+    public string? UndoText;
+    public int UndoCommaAt = -1;
+    /// <summary>Як слово виглядає на екрані після вставки пробілу («Привіт, як»), якщо відрізняється від набраного.</summary>
+    public string? ScreenText;
     /// <summary>Автовиправлення цього слова скасовано — більше його не чіпати.</summary>
     public bool NoAuto;
     public bool CommaInserted;
@@ -37,7 +43,7 @@ internal sealed class WordBuffer
 
     public void Clear()
     {
-        Keys.Clear(); Trailing.Clear(); Prev = null; PrevText = null; NoAuto = CommaInserted = false;
+        Keys.Clear(); Trailing.Clear(); Prev = null; Recent.Clear(); UndoErase = 0; UndoText = null; UndoCommaAt = -1; ScreenText = null; NoAuto = CommaInserted = false;
         AutoConverted = PrevConverted = AutoLayout = false; AutoCase = CaseFix.None; ArmedVersion = -1;
         Version++;
     }
@@ -267,11 +273,18 @@ internal sealed class KeyboardMonitor : IDisposable
                 // Однобуквене слово, за яким іде рівно один пробіл, запам'ятовуємо як попереднє
                 bool oneSpace = hwnd == Word.Hwnd && Word.Keys.Count > 0 && Word.Trailing.Count == 1 && Word.Trailing[0] == ' ';
                 KeyStroke? prev = oneSpace && Word.Keys.Count == 1 && !Word.AutoConverted ? Word.Keys[0] : null;
-                string? prevText = oneSpace ? TextOf(Word.Keys) : null;
+                string? prevText = oneSpace ? Word.ScreenText ?? TextOf(Word.Keys) : null;
+                var recent = new List<string>();
+                if (oneSpace && prevText != null)
+                {
+                    recent.AddRange(Word.Recent);
+                    recent.AddRange(prevText.Split(' '));
+                    while (recent.Count > 8) recent.RemoveAt(0);
+                }
                 Word.Clear();
                 Word.Hwnd = hwnd;
                 Word.Prev = prev;
-                Word.PrevText = prevText;
+                Word.Recent.AddRange(recent);
             }
             Word.Keys.Add(new KeyStroke { Vk = vk, Scan = k.scanCode, Mods = mods, Shown = hkl });
             Word.Version++;

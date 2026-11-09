@@ -13,6 +13,7 @@ internal sealed class Settings
     public bool FixCaps { get; set; } = true;
     public bool EarlySwitch { get; set; } = true;
     public bool AutoComma { get; set; } = true;
+    public bool SpaceAfterPunct { get; set; } = true;
     public bool FixTwoCaps { get; set; } = true;
     public bool Sound { get; set; } = true;
     public bool Flash { get; set; } = true;
@@ -55,6 +56,7 @@ internal sealed class Settings
                     case nameof(FixCaps): s.FixCaps = val; break;
                     case nameof(EarlySwitch): s.EarlySwitch = val; break;
                     case nameof(AutoComma): s.AutoComma = val; break;
+                    case nameof(SpaceAfterPunct): s.SpaceAfterPunct = val; break;
                     case nameof(FixTwoCaps): s.FixTwoCaps = val; break;
                     case nameof(Sound): s.Sound = val; break;
                     case nameof(Flash): s.Flash = val; break;
@@ -81,6 +83,7 @@ internal sealed class Settings
                 $"{nameof(FixCaps)}={FixCaps.ToString().ToLower()}",
                 $"{nameof(EarlySwitch)}={EarlySwitch.ToString().ToLower()}",
                 $"{nameof(AutoComma)}={AutoComma.ToString().ToLower()}",
+                $"{nameof(SpaceAfterPunct)}={SpaceAfterPunct.ToString().ToLower()}",
                 $"{nameof(FixTwoCaps)}={FixTwoCaps.ToString().ToLower()}",
                 $"{nameof(Sound)}={Sound.ToString().ToLower()}",
                 $"{nameof(Flash)}={Flash.ToString().ToLower()}",

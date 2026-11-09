@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UaSwitch — перемикач розкладок УКР/АНГЛ</title>
-<meta name="description" content="Безкоштовний перемикач розкладок для Windows: виправляє текст, набраний не в тій розкладці (ghbdsn → привіт). Українська — основна мова.">
+<meta name="description" content="Мінімалістичний перемикач розкладок УКР/АНГЛ для Windows: один файл менше 1 МБ, без встановлення й інтернету. Виправляє розкладку, коми, регістр і пробіли.">
 <meta property="og:title" content="UaSwitch — перемикач розкладок УКР/АНГЛ">
 <meta property="og:description" content="Набрали ghbdsn замість привіт? UaSwitch виправить сам. Безкоштовно, відкритий код.">
 <meta property="og:image" content="https://uaswitch.github.io/UaSwitch/social-preview.png">
@@ -39,7 +39,9 @@ a{color:var(--accent)}
 .btn{display:inline-flex;align-items:center;gap:10px;background:var(--yellow);color:#14181f;text-decoration:none;font-weight:700;padding:15px 26px;border-radius:12px;font-size:17px;box-shadow:0 8px 24px -8px rgba(0,0,0,.45);transition:transform .15s}
 .btn:hover{transform:translateY(-1px)}
 .btn svg{width:20px;height:20px}
-.meta{font-size:14px;opacity:.85;margin-top:14px}
+.meta{font-size:14px;opacity:.85;margin-top:10px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.badges span{font-size:13px;font-weight:600;padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22)}
 .meta a{color:#fff}
 
 /* ---------- Демо-вікно ---------- */
@@ -97,6 +99,25 @@ kbd{border:1px solid var(--line);border-bottom-width:2px}
 .dlg-btns span{min-width:92px;text-align:center;padding:5px 12px;border:1px solid #c9c9c9;border-radius:4px;background:#fbfbfb}
 .dlg-btns span.pri{background:#0067c0;border-color:#0067c0;color:#fff}
 
+/* Мінімалізм і порівняння */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.duo h3{margin:0 0 8px;font-size:18px}
+.duo ul{margin:0;padding-left:20px;color:var(--muted);font-size:15px}
+.duo li{margin:5px 0}
+.cmp-title{font-size:18px;margin:32px 0 12px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.tbl table{border-collapse:collapse;width:100%;min-width:640px;font-size:15px}
+.tbl th,.tbl td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl tbody tr:last-child th,.tbl tbody tr:last-child td{border-bottom:0}
+.tbl thead th{font-size:14px;color:var(--muted);font-weight:600}
+.tbl tbody th{font-weight:600;width:24%}
+.tbl .us{background:color-mix(in srgb,var(--accent) 9%,transparent);font-weight:600}
+.tbl thead th.us{color:var(--accent)}
+.tbl .yes::before{content:"✓ ";color:#16a34a;font-weight:700}
+.tbl .no::before{content:"✕ ";color:#dc2626;font-weight:700}
+.note{color:var(--muted);font-size:14px;margin:12px 0 0}
+@media (max-width:860px){.duo{grid-template-columns:1fr}}
+
 /* Справжні скріншоти */
 .shot-tray{margin:0 0 18px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center}
 .shot-tray img{max-width:100%;height:auto;border-radius:8px}
@@ -143,12 +164,13 @@ footer a{color:inherit}
     <div>
       <div class="brand"><img src="icon.png" alt=""><span>UaSwitch</span></div>
       <h1>Набрали <em>ghbdsn</em>?<br>Програма зробить з цього «привіт».</h1>
-      <p>Безкоштовний перемикач розкладок для Windows. Виправляє текст, набраний не в тій розкладці, і сам перемикає мову. Українська тут основна мова, а не додаток.</p>
+      <p>Мінімалістичний, але повноцінний перемикач розкладок для Windows. Один файл менше 1 МБ, без встановлення й без інтернету — а виправляє розкладку, коми, регістр і пробіли. Українська тут основна мова, а не додаток.</p>
       <a class="btn js-download" href="#">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 21h16"/></svg>
         Завантажити для Windows
       </a>
-      <div class="meta">Windows 10 / 11 · без встановлення · без реклами · <a class="js-source" href="#">відкритий код</a></div>
+      <div class="badges"><span>&lt; 1 МБ</span><span>1 файл</span><span>без встановлення</span><span>без інтернету</span></div>
+      <div class="meta">Windows 10 / 11 · безкоштовно · <a class="js-source" href="#">відкритий код</a></div>
     </div>
 
     <div>
@@ -175,6 +197,45 @@ footer a{color:inherit}
       <div class="card"><div class="ico">,</div><h3>Коми</h3><p><code>знаю що</code> → <code>знаю, що</code>. Перед «що», «щоб», «але», «який». «Тому що» не чіпає.</p></div>
       <div class="card"><div class="ico">🛡️</div><h3>Не заважає в роботі</h3><p>Не чіпає коди, номери, абревіатури й email. Можна вимкнути в окремих програмах.</p></div>
     </div>
+  </section>
+
+  <section>
+    <h2>Мінімум програми — максимум користі</h2>
+    <p class="sub">UaSwitch робить одну річ — допомагає набирати текст — і робить її добре.</p>
+    <div class="duo">
+      <div class="card">
+        <h3>Мінімалістичний</h3>
+        <ul>
+          <li>Один файл <code>UaSwitch.exe</code> менше 1 МБ, без інсталятора</li>
+          <li>Працює на вбудованому в Windows .NET — нічого докачувати</li>
+          <li>Взагалі не виходить в інтернет: ні оновлень, ні статистики, ні акаунтів</li>
+          <li>Одне вікно налаштувань, кожна функція вимикається окремо</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Функціональний</h3>
+        <ul>
+          <li>Виправляє розкладку, часто вже на 4-й літері, з урахуванням мови речення</li>
+          <li>Ставить коми, лікує Caps Lock і пропущений пробіл після коми</li>
+          <li>Не чіпає коди, номери, абревіатури й імена файлів</li>
+          <li>Будь-яке виправлення скасовується одним <kbd>Backspace</kbd></li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 class="cmp-title">Порівняння з аналогами</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th></th><th class="us">UaSwitch</th><th>Punto Switcher</th><th>Caramba Switcher</th><th>Klavko</th></tr></thead>
+        <tbody>
+          <tr><th>Автовиправлення УКР ↔ АНГЛ</th><td class="us yes">Так</td><td class="no">Ні, лише RU ↔ EN</td><td class="no">Ні, EN / RU / DE</td><td class="yes">Так</td></tr>
+          <tr><th>Відкритий код</th><td class="us yes">Так, MIT</td><td class="no">Ні</td><td class="no">Ні</td><td>Відкритий, без ліцензії</td></tr>
+          <tr><th>Розробник</th><td class="us">Україна</td><td>Яндекс (під санкціями в Україні)</td><td>Російський</td><td>Україна</td></tr>
+          <tr><th>Підхід</th><td class="us">Лише набір тексту</td><td>—</td><td>—</td><td>Комбайн: голос, переклад, буфер обміну</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Klavko — сильний український проєкт для macOS з бета-версією для Windows, який вміє набагато більше. UaSwitch свідомо робить лише набір тексту, тому лишається крихітним і повністю офлайновим. Дані станом на листопад 2026.</p>
   </section>
 
   <section>

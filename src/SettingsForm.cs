@@ -8,7 +8,7 @@ internal sealed class SettingsForm : Form
 {
     private readonly Settings _s;
     private readonly Exceptions _ex;
-    private readonly CheckBox _enabled, _auto, _early, _comma, _caps, _twoCaps, _sound, _flash, _autostart, _pause, _dShift, _dCtrl;
+    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sound, _flash, _autostart, _pause, _dShift, _dCtrl;
     private readonly ListBox _apps = new(), _words = new();
     private readonly ComboBox _appInput = new() { DropDownStyle = ComboBoxStyle.DropDown };
     private readonly TextBox _wordInput = new();
@@ -18,17 +18,18 @@ internal sealed class SettingsForm : Form
         _s = settings;
         _ex = exceptions;
 
-        Text = "UaSwitch — налаштування";
+        string version = Application.ProductVersion.Split('+')[0];
+        Text = $"UaSwitch {version} — налаштування";
         Font = new Font("Segoe UI", 9f);
         AutoScaleMode = AutoScaleMode.Dpi;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(500, 540);
+        ClientSize = new Size(500, 570);
         ShowInTaskbar = true;
         try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
-        var tabs = new TabControl { Dock = DockStyle.Top, Height = 490 };
+        var tabs = new TabControl { Dock = DockStyle.Top, Height = 520 };
 
         // ---- Загальне ----
         var general = Page("Загальне");
@@ -36,6 +37,7 @@ internal sealed class SettingsForm : Form
         _auto = Check(general, "Автоматично виправляти слова після пробілу", _s.AutoMode);
         _early = Check(general, "Виправляти слово вже на 4-й літері, не чекаючи пробілу", _s.EarlySwitch);
         _comma = Check(general, "Ставити кому перед «що», «щоб», «але», «який»…", _s.AutoComma);
+        _space = Check(general, "Пробіл після коми  (Привіт,як → Привіт, як)", _s.SpaceAfterPunct);
         _caps = Check(general, "Виправляти випадковий Caps Lock  (пРИВІТ → Привіт)", _s.FixCaps);
         _twoCaps = Check(general, "Виправляти дві великі на початку  (ПРивіт → Привіт)", _s.FixTwoCaps);
         _sound = Check(general, "Тихий звук при виправленні", _s.Sound);
@@ -68,13 +70,21 @@ internal sealed class SettingsForm : Form
         tabs.TabPages.AddRange(new[] { general, keys, apps, words });
         Controls.Add(tabs);
 
-        var ok = new Button { Text = "Зберегти", DialogResult = DialogResult.OK, Size = new Size(100, 30), Location = new Point(282, 500) };
-        var cancel = new Button { Text = "Скасувати", DialogResult = DialogResult.Cancel, Size = new Size(100, 30), Location = new Point(390, 500) };
+        var ok = new Button { Text = "Зберегти", DialogResult = DialogResult.OK, Size = new Size(100, 30), Location = new Point(282, 530) };
+        var cancel = new Button { Text = "Скасувати", DialogResult = DialogResult.Cancel, Size = new Size(100, 30), Location = new Point(390, 530) };
         // Вікно немодальне (Show), тому закриваємо його явно: DialogResult на кнопках тут не спрацьовує
         ok.Click += (_, _) => { SaveAll(); DialogResult = DialogResult.OK; Close(); };
         cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
         Controls.Add(ok);
         Controls.Add(cancel);
+        var about = new LinkLabel
+        {
+            Text = $"Версія {version} · uaswitch.github.io",
+            AutoSize = true, Location = new Point(12, 537), LinkColor = SystemColors.GrayText,
+        };
+        about.Links.Add(about.Text.IndexOf("uaswitch"), "uaswitch.github.io".Length, "https://uaswitch.github.io/UaSwitch/");
+        about.LinkClicked += (_, e) => { try { Process.Start(new ProcessStartInfo((string)e.Link.LinkData) { UseShellExecute = true }); } catch { } };
+        Controls.Add(about);
         AcceptButton = ok;
         CancelButton = cancel;
     }
@@ -86,6 +96,7 @@ internal sealed class SettingsForm : Form
         _s.FixCaps = _caps.Checked;
         _s.EarlySwitch = _early.Checked;
         _s.AutoComma = _comma.Checked;
+        _s.SpaceAfterPunct = _space.Checked;
         _s.FixTwoCaps = _twoCaps.Checked;
         _s.Sound = _sound.Checked;
         _s.Flash = _flash.Checked;

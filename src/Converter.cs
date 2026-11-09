@@ -110,6 +110,12 @@ internal sealed class Converter
             string? curText = TextOf(w.Keys, cur), altText = TextOf(w.Keys, alt);
             if (curText == null || altText == null) return "не вдалося прочитати символи";
             if (_exceptions.Blocks(curText)) return "";
+            if (TrySpaceAfterPunct(w, curText, curIsUa)) { corrected = true; goto done; }
+            if (HasInnerPunct(curText) && !altText.All(IsWordChar) || LooksLikeFileOrDomain(curText))
+            {
+                corrected = TryComma(w); // «Привіт,як» чи «file.txt» — розкладку не чіпаємо
+                goto done;
+            }
 
             // Регістр: випадковий Caps Lock (пРИВІТ) або дві великі на початку (ПРивіт)
             var fix = CaseFix.None;
@@ -127,7 +133,8 @@ internal sealed class Converter
                 altFixed = TextOf(tmp, alt) ?? altText;
             }
 
-            bool layout = _detector.ShouldConvert(curFixed, altFixed, curIsUa);
+            var (ctxUa, ctxEn) = AutoDetector.Context(w.Recent);
+            bool layout = _detector.ShouldConvert(curFixed, altFixed, curIsUa, ctxUa, ctxEn);
             if (!layout && fix == CaseFix.TwoCaps && !_detector.IsKnownWord(curFixed, curIsUa)) fix = CaseFix.None;
             if (!layout && fix == CaseFix.None)
             {
@@ -203,38 +210,97 @@ internal sealed class Converter
 
     // ---------- Кома перед сполучником ----------
 
-    /// <summary>«знаю що» → «знаю, що». Викликається під замком, коли щойно набрано пробіл після слова.</summary>
+    /// <summary>Кома перед підрядним (див. CommaRules). Викликається під замком одразу після пробілу за словом.</summary>
     private bool TryComma(WordBuffer w)
     {
         if (!_settings.AutoComma || w.CommaInserted) return false;
         var shown = w.Keys[0].Shown;
         if (!_layouts.IsUa(shown) || w.Keys.Any(k => k.Shown != shown)) return false;
         string? word = TextOf(w.Keys, shown);
-        if (word == null || !CommaRules.ShouldInsert(w.PrevText, word)) return false;
+        if (word == null) return false;
+        int where = CommaRules.Where(w.Recent, word);
+        if (where < 0) return false;
 
-        // Стираємо « слово » разом із пробілом перед ним і набираємо «, слово »
-        var inputs = new List<Native.INPUT>();
-        int erase = word.Length + w.Trailing.Count + 1;
-        for (int i = 0; i < erase; i++) AddKey(inputs, VK_BACK);
-        AddText(inputs, ", " + word + new string(w.Trailing.ToArray()));
-        Send(inputs);
+        // Хвіст рядка, який переписуємо: « [попереднє] слово » → «, [попереднє] слово »
+        string trailing = new string(w.Trailing.ToArray());
+        string tail = (where == 1 ? w.Recent[w.Recent.Count - 1] + " " : "") + word + trailing;
+        Replace(" " + tail, ", " + tail);
+        w.UndoErase = tail.Length + 2;
+        w.UndoText = " " + tail;
+        int target = w.Recent.Count - 1 - where;          // слово, після якого стала кома
+        if (target >= 0 && target < w.Recent.Count) { w.Recent[target] += ","; w.UndoCommaAt = target; }
         w.CommaInserted = true;
         w.ArmedVersion = w.Version;
         return true;
     }
 
+    /// <summary>«Привіт,як» → «Привіт, як»: обидві частини мають бути словами зі словника.</summary>
+    private bool TrySpaceAfterPunct(WordBuffer w, string text, bool isUa)
+    {
+        if (!_settings.SpaceAfterPunct) return false;
+        int p = -1;
+        for (int i = 1; i < text.Length - 1; i++)
+            if (",;!?".IndexOf(text[i]) >= 0) { if (p >= 0) return false; p = i; }
+        if (p < 0) return false;
+        string left = text.Substring(0, p), right = text.Substring(p + 1);
+        if (!left.All(IsWordChar) || !right.All(IsWordChar)) return false;
+        if (!_detector.IsKnownWord(left, isUa) || !_detector.IsKnownWord(right, isUa)) return false;
+
+        string trailing = new string(w.Trailing.ToArray());
+        string fixedText = left + text[p] + " " + right + trailing;
+        Replace(text + trailing, fixedText);
+        w.UndoErase = fixedText.Length;
+        w.UndoText = text + trailing;
+        w.ScreenText = left + text[p] + " " + right;
+        w.CommaInserted = true; // той самий механізм скасування через Backspace
+        w.ArmedVersion = w.Version;
+        return true;
+    }
+
+    private static bool IsWordChar(char c) => char.IsLetter(c) || c == '\'' || c == '’';
+
+    /// <summary>Розділовий знак усередині слова між літерами: «Привіт,як», «file.txt».</summary>
+    private static bool HasInnerPunct(string s)
+    {
+        for (int i = 1; i < s.Length - 1; i++)
+            if (!IsWordChar(s[i]) && char.IsLetter(s[i - 1]) && char.IsLetter(s[i + 1]) && s[i] != '-') return true;
+        return false;
+    }
+
+    /// <summary>«file.txt», «google.com», «e.g» — латиниця з крапкою, після якої 1–4 літери.</summary>
+    private static bool LooksLikeFileOrDomain(string s)
+    {
+        int dot = s.LastIndexOf('.');
+        if (dot <= 0 || dot >= s.Length - 1) return false;
+        string ext = s.Substring(dot + 1);
+        return ext.Length <= 4 && ext.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z')
+               && char.IsLetter(s[dot - 1]) && s.Any(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z');
+    }
+
     private void RevertComma(WordBuffer w)
     {
-        string? word = TextOf(w.Keys, w.Keys[0].Shown);
-        if (word == null) return;
+        if (w.UndoText == null) return;
         var inputs = new List<Native.INPUT>();
-        int erase = word.Length + w.Trailing.Count + 2;
-        for (int i = 0; i < erase; i++) AddKey(inputs, VK_BACK);
-        AddText(inputs, " " + word + new string(w.Trailing.ToArray()));
+        for (int i = 0; i < w.UndoErase; i++) AddKey(inputs, VK_BACK);
+        AddText(inputs, w.UndoText);
         Send(inputs);
+        if (w.UndoCommaAt >= 0 && w.UndoCommaAt < w.Recent.Count && w.Recent[w.UndoCommaAt].EndsWith(","))
+            w.Recent[w.UndoCommaAt] = w.Recent[w.UndoCommaAt].Substring(0, w.Recent[w.UndoCommaAt].Length - 1);
+        w.UndoCommaAt = -1;
+        w.ScreenText = null;
+        w.UndoText = null;
         w.CommaInserted = false;
         w.ArmedVersion = -1;
         w.NoAuto = true;
+    }
+
+    /// <summary>Стирає old (з кінця) і набирає new.</summary>
+    private void Replace(string oldTail, string newTail)
+    {
+        var inputs = new List<Native.INPUT>();
+        for (int i = 0; i < oldTail.Length; i++) AddKey(inputs, VK_BACK);
+        AddText(inputs, newTail);
+        Send(inputs);
     }
 
     // ---------- Регістр ----------
@@ -326,6 +392,8 @@ internal sealed class Converter
         Send(inputs);
 
         foreach (var k in all) k.Shown = target; // повторне перемикання поверне назад
+        if (withPrev && w.Prev != null && w.Recent.Count > 0)
+            w.Recent[w.Recent.Count - 1] = _layouts.CharFor(w.Prev.Vk, w.Prev.Scan, w.Prev.Mods, target) ?? w.Recent[w.Recent.Count - 1];
         if (switchLayout) SwitchLayout(fg, target);
     }
 
