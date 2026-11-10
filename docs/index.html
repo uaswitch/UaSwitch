@@ -193,9 +193,9 @@ footer a{color:inherit}
       <div class="card"><div class="ico">⚡</div><h3>Виправляє на ходу</h3><p>Часто вже на 4-й літері: <code>ghbd</code> → <code>прив</code>, далі ви набираєте в правильній розкладці.</p></div>
       <div class="card"><div class="ico">⌨️</div><h3>Вручну, коли треба</h3><p><kbd>Pause</kbd> або двічі <kbd>Shift</kbd> — останнє слово. Двічі <kbd>Ctrl</kbd> — виділений текст.</p></div>
       <div class="card"><div class="ico">↩️</div><h3>Легко скасувати</h3><p><kbd>Backspace</kbd> одразу після виправлення повертає як було й запам'ятовує слово.</p></div>
-      <div class="card"><div class="ico">Aa</div><h3>Регістр</h3><p>Випадковий Caps Lock: <code>пРИВІТ</code> → <code>Привіт</code>. Дві великі: <code>ПРивіт</code> → <code>Привіт</code>.</p></div>
-      <div class="card"><div class="ico">,</div><h3>Коми і пробіли</h3><p><code>знаю де він</code> → <code>знаю, де він</code>, <code>Привіт,як</code> → <code>Привіт, як</code>. «Тому що» не чіпає.</p></div>
-      <div class="card"><div class="ico">✍️</div><h3>Автозаміна</h3><p>Ваші скорочення стають текстом: <code>.зп</code> → «З повагою, Руслан». Навіть у неправильній розкладці.</p></div>
+      <div class="card"><div class="ico">ʼ</div><h3>Апостроф</h3><p><code>мясо</code> → <code>м'ясо</code>, <code>обєкт</code> → <code>об'єкт</code>. Повний словник української: «бюро» й «буряк» не чіпає. Працює й у Word.</p></div>
+      <div class="card"><div class="ico">,</div><h3>Коми і регістр</h3><p><code>знаю де він</code> → <code>знаю, де він</code>, <code>так. добре</code> → <code>так. Добре</code>, <code>пРИВІТ</code> → <code>Привіт</code>.</p></div>
+      <div class="card"><div class="ico">✍️</div><h3>Автозаміна</h3><p>Ваші скорочення стають текстом: <code>.дяк</code> → «Дякую за допомогу!». Навіть у неправильній розкладці.</p></div>
       <div class="card"><div class="ico">⇪</div><h3>Caps Lock — мова</h3><p>За бажанням Caps Lock перемикає УКР ↔ АНГЛ одним натисканням, а великі літери — <kbd>Shift</kbd>+<kbd>Caps</kbd>.</p></div>
       <div class="card"><div class="ico">🛡️</div><h3>Не заважає в роботі</h3><p>Не чіпає коди, номери, абревіатури й email. Можна вимкнути в окремих програмах.</p></div>
     </div>
@@ -211,14 +211,14 @@ footer a{color:inherit}
           <li>Один файл <code>UaSwitch.exe</code> менше 1 МБ, без інсталятора</li>
           <li>Працює на вбудованому в Windows .NET — нічого докачувати</li>
           <li>Взагалі не виходить в інтернет: ні оновлень, ні статистики, ні акаунтів</li>
-          <li>Одне вікно налаштувань, кожна функція вимикається окремо</li>
+          <li>Одне вікно налаштувань: зміни діють одразу, кожна функція вимикається окремо</li>
         </ul>
       </div>
       <div class="card">
         <h3>Функціональний</h3>
         <ul>
           <li>Виправляє розкладку, часто вже на 4-й літері, з урахуванням мови речення</li>
-          <li>Ставить коми, лікує Caps Lock і пропущений пробіл після коми</li>
+          <li>Ставить апострофи й коми, велику літеру на початку речення, лікує Caps Lock</li>
           <li>Не чіпає коди, номери, абревіатури й імена файлів</li>
           <li>Будь-яке виправлення скасовується одним <kbd>Backspace</kbd></li>
         </ul>
@@ -259,7 +259,7 @@ footer a{color:inherit}
     <div class="settings-row">
       <div>
         <h2>Прості налаштування</h2>
-        <p class="sub">Подвійний клік по іконці відкриває вікно налаштувань. Кожну функцію можна вимкнути окремо.</p>
+        <p class="sub">Подвійний клік по іконці відкриває вікно налаштувань. Кожну функцію можна вимкнути окремо, а зміни діють одразу — без кнопки «Зберегти».</p>
         <p class="sub" style="font-size:15px">Вкладки «Програми» і «Слова-винятки» дозволяють вказати, де і що програма не повинна виправляти. А меню іконки має пункт «Не виправляти в цій програмі».</p>
       </div>
       <div class="gallery">
@@ -267,8 +267,9 @@ footer a{color:inherit}
           <button role="tab" aria-selected="true" data-img="screen-general.png" data-alt="Вкладка «Загальне»">Загальне</button>
           <button role="tab" aria-selected="false" data-img="screen-hotkeys.png" data-alt="Вкладка «Гарячі клавіші»">Гарячі клавіші</button>
           <button role="tab" aria-selected="false" data-img="screen-apps.png" data-alt="Вкладка «Програми»">Програми</button>
+          <button role="tab" aria-selected="false" data-img="screen-replace.png" data-alt="Вкладка «Автозаміна»">Автозаміна</button>
         </div>
-        <img id="shot" class="shot" src="screen-general.png" alt="Вкладка «Загальне»" width="510" height="610" loading="lazy">
+        <img id="shot" class="shot" src="screen-general.png" alt="Вкладка «Загальне»" width="510" height="626" loading="lazy">
       </div>
     </div>
   </section>

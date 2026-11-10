@@ -10,7 +10,7 @@ internal sealed class KeyStroke
     public IntPtr Shown;
 }
 
-internal enum CaseFix { None, Caps, TwoCaps }
+internal enum CaseFix { None, Caps, TwoCaps, Sentence }
 
 /// <summary>Останнє набране слово і пробіли після нього.</summary>
 internal sealed class WordBuffer
@@ -79,6 +79,9 @@ internal sealed class KeyboardMonitor : IDisposable
     public event Action? UndoRequested;
     public event Action? LayoutToggleRequested;
     public event Action<int>? ReplaceOnEnterRequested;
+    /// <summary>Чи треба слову апостроф («мясо»). Тоді пробіл затримується, щоб Word не встиг зробити свою автозаміну.</summary>
+    public Func<string, bool>? NeedsApostrophe;
+    public event Action<int>? ApostropheOnSpaceRequested;
 
     private readonly Layouts _layouts;
     private readonly SynchronizationContext _ui;
@@ -275,6 +278,17 @@ internal sealed class KeyboardMonitor : IDisposable
             }
             if (vk is VK_SPACE or VK_TAB)
             {
+                if (vk == VK_SPACE && AutoMode && NeedsApostrophe != null && Word.Keys.Count > 1 && Word.Trailing.Count == 0 && !Word.NoAuto)
+                {
+                    string? cur = TextOf(Word.Keys);
+                    var h = ApostropheOnSpaceRequested;
+                    if (cur != null && h != null && NeedsApostrophe(cur))
+                    {
+                        int ver = Word.Version;
+                        _ui.Post(_ => h(ver), null);
+                        return true; // пробіл надрукує Converter уже після апострофа
+                    }
+                }
                 if (Word.Keys.Count > 0 && Word.Trailing.Count < 8)
                 {
                     Word.Trailing.Add(vk == VK_SPACE ? ' ' : '\t');

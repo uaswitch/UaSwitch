@@ -46,6 +46,8 @@ internal sealed class TrayApp : ApplicationContext
         Settings.MigrateAutostart();
         _converter = new Converter(_layouts, _monitor, _detector, _exceptions, _settings, _replace);
         _monitor.IsAbbrev = _replace.Contains;
+        _monitor.NeedsApostrophe = w => _settings.FixApostrophe && _detector.FixApostrophe(w.TrimEnd(".,!?;:\")»".ToCharArray()), '\'') != null;
+        _monitor.ApostropheOnSpaceRequested += _converter.ApostropheOnSpace;
         _monitor.LayoutToggleRequested += _converter.ToggleLayout;
         _monitor.ReplaceOnEnterRequested += _converter.ReplaceOnEnter;
         _monitor.LastWordRequested += _converter.ConvertLastWord;
@@ -161,9 +163,9 @@ internal sealed class TrayApp : ApplicationContext
     {
         if (_settingsForm != null) { _settingsForm.Activate(); return; }
         _settingsForm = new SettingsForm(_settings, _exceptions, _replace);
+        _settingsForm.Changed += () => Apply(save: false); // кожна зміна зберігається й діє одразу
         _settingsForm.FormClosed += (_, _) =>
         {
-            if (_settingsForm.DialogResult == DialogResult.OK) Apply(save: false);
             _settingsForm = null;
         };
         _settingsForm.Show();
@@ -261,7 +263,8 @@ internal sealed class TrayApp : ApplicationContext
         "Часто слово виправляється вже на 4-й літері.\n" +
         "Перед «що», «щоб», «але», «який» ставиться кома (Backspace — прибрати).\n\n" +
         "Також виправляється регістр: пРИВІТ → Привіт (і вимикається\n" +
-        "Caps Lock), ПРивіт → Привіт.\n\n" +
+        "Caps Lock), ПРивіт → Привіт, велика літера після крапки.\n" +
+        "Апостроф: мясо → м'ясо, обєкт → об'єкт.\n\n" +
         "Вручну:\n" +
         "•  Pause або двічі Shift — виправити останнє слово\n" +
         "   (натисніть ще раз, щоб повернути як було)\n" +

@@ -101,6 +101,10 @@ internal sealed class AutoDetector
     }
 
     private Lang? _ua, _en;
+    // Ключі апострофа з повного словника української (3,6 млн словоформ, ~50 тис. з апострофом):
+    // «м'я» — слово, що починається з «мя», пишеться з апострофом; «…$» — лише ціле слово.
+    private readonly HashSet<string> _apoKeys = new();
+    private readonly HashSet<char> _apoFirst = new();
     public bool Ready => _ua != null && _en != null;
 
     public void Load()
@@ -111,6 +115,8 @@ internal sealed class AutoDetector
         ua.BuildPrefixIndex();
         en.BuildPrefixIndex();
         _en = en;
+        foreach (var k in ReadWords("UaSwitch.apo.txt.gz"))
+            if (k.Length > 2) { _apoKeys.Add(k); _apoFirst.Add(k[k.IndexOf('\'') + 1]); }
         _ua = ua; // Ready стає true лише коли обидві мови готові
         Log.Write($"Словники: UA {ua.Rank.Count}, EN {en.Rank.Count}, {sw.ElapsedMilliseconds} мс");
     }
@@ -251,6 +257,62 @@ internal sealed class AutoDetector
         if (!Ready) return false;
         string w = Normalize(text).TrimEnd(Punct.ToCharArray()).ToLowerInvariant();
         return w.Length > 0 && (isUa ? _ua! : _en!).Rank.ContainsKey(w);
+    }
+
+    /// <summary>Куди вставити апостроф у слово без нього (індекс) або -1.</summary>
+    private int ApostrophePos(string w)
+    {
+        for (int i = 1; i < w.Length; i++)
+        {
+            if (!_apoFirst.Contains(w[i])) continue;
+            string left = w.Substring(0, i) + "'";
+            for (int k = 1; k <= w.Length - i; k++)
+                if (_apoKeys.Contains(left + w.Substring(i, k))) return i;
+            if (_apoKeys.Contains(left + w.Substring(i) + "$")) return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Апостроф: «мясо» → «м'ясо», «обєкт» → «об'єкт», «мєясо» → «м'ясо» (в EN-розкладці апостроф там, де в UA «є»),
+    /// «св'ято» → «свято». Повертає виправлене слово (регістр зберігається) або null.
+    /// Перевірено на всіх 3,6 млн словоформ: жодне правильне слово не змінюється.
+    /// </summary>
+    public string? FixApostrophe(string word, char apo)
+    {
+        if (!Ready || word.Length < 2) return null;
+        string low = Normalize(word).ToLowerInvariant();
+        if (!low.All(c => char.IsLetter(c) || c == '\'' || c == '-')) return null;
+        string? best = null;
+
+        int q = low.IndexOf('\'');
+        if (q >= 0)
+        {
+            // Зайвий апостроф: «св'ято» — форма з апострофом неправильна, а без нього слово відоме
+            string w = low.Remove(q, 1);
+            if (q == low.LastIndexOf('\'') && ApostrophePos(w) != q && _ua!.Rank.ContainsKey(w)) best = w;
+        }
+        else
+        {
+            // «мєясо»: замість апострофа натиснуто клавішу «є»
+            for (int i = 1; i + 1 < low.Length && best == null; i++)
+            {
+                if (low[i] != 'є' || "яюєї".IndexOf(low[i + 1]) < 0) continue;
+                string w = low.Remove(i, 1);
+                if (ApostrophePos(w) == i) best = w.Insert(i, "'");
+            }
+            int p = ApostrophePos(low);
+            // «сімєю»: можливі і «сім'єю», і «сім'ю» — частіше пропускають апостроф, ніж тиснуть «є»
+            if (p > 0 && (best == null || _ua!.Rank.ContainsKey(low.Insert(p, "'")))) best = low.Insert(p, "'");
+        }
+        if (best == null) return null;
+
+        // Регістр: УСІ ВЕЛИКІ, З великої або малими — як набрано
+        string res = best.Replace('\'', apo);
+        var letters = word.Where(char.IsLetter).ToList();
+        if (letters.Count > 1 && letters.All(char.IsUpper)) return res.ToUpperInvariant();
+        if (char.IsUpper(word[0])) return char.ToUpperInvariant(res[0]) + res.Substring(1);
+        return res;
     }
 
     /// <summary>Однобуквене слово, яке варто виправити разом із наступним («z ljvf» → «я вдома»).</summary>

@@ -17,6 +17,8 @@ internal sealed class Settings
     public bool CapsSwitch { get; set; } = false;
     public bool AutoReplace { get; set; } = true;
     public bool FixTwoCaps { get; set; } = true;
+    public bool SentenceCaps { get; set; } = true;
+    public bool FixApostrophe { get; set; } = true;
     public bool Sound { get; set; } = true;
     public bool Flash { get; set; } = true;
     /// <summary>Програми (імена процесів без .exe), де автовиправлення вимкнено.</summary>
@@ -62,6 +64,8 @@ internal sealed class Settings
                     case nameof(CapsSwitch): s.CapsSwitch = val; break;
                     case nameof(AutoReplace): s.AutoReplace = val; break;
                     case nameof(FixTwoCaps): s.FixTwoCaps = val; break;
+                    case nameof(SentenceCaps): s.SentenceCaps = val; break;
+                    case nameof(FixApostrophe): s.FixApostrophe = val; break;
                     case nameof(Sound): s.Sound = val; break;
                     case nameof(Flash): s.Flash = val; break;
                     case nameof(ExcludedApps): s.ExcludedApps = raw; break;
@@ -91,6 +95,8 @@ internal sealed class Settings
                 $"{nameof(CapsSwitch)}={CapsSwitch.ToString().ToLower()}",
                 $"{nameof(AutoReplace)}={AutoReplace.ToString().ToLower()}",
                 $"{nameof(FixTwoCaps)}={FixTwoCaps.ToString().ToLower()}",
+                $"{nameof(SentenceCaps)}={SentenceCaps.ToString().ToLower()}",
+                $"{nameof(FixApostrophe)}={FixApostrophe.ToString().ToLower()}",
                 $"{nameof(Sound)}={Sound.ToString().ToLower()}",
                 $"{nameof(Flash)}={Flash.ToString().ToLower()}",
                 "# Програми без автовиправлення (імена процесів через кому):",
