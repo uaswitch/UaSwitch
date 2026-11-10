@@ -277,7 +277,8 @@ internal sealed class TrayApp : ApplicationContext
         "Меню → «Не виправляти в …» — вимкнути автоматику в програмі,\n" +
         "з якою ви щойно працювали.\n\n" +
         "Набраний текст ніде не зберігається і нікуди не передається.\n" +
-        "На диск записуються лише налаштування, винятки й автозаміна.",
+        "На диск записуються лише налаштування, винятки й автозаміна.\n\n" +
+        "Розробник: Ruslan Pichkar · uaswitch.github.io/UaSwitch",
         "UaSwitch — довідка", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
     protected override void ExitThreadCore()
