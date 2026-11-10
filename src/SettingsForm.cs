@@ -92,7 +92,7 @@ internal sealed class SettingsForm : Form
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 40 };
         var about = new LinkLabel
         {
-            Text = $"Версія {version} · uaswitch.github.io",
+            Text = $"Версія {version} · Ruslan Pichkar · uaswitch.github.io",
             AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(8, 12, 0, 0), LinkColor = SystemColors.GrayText,
         };
         about.Links.Add(about.Text.IndexOf("uaswitch"), "uaswitch.github.io".Length, "https://uaswitch.github.io/UaSwitch/");
