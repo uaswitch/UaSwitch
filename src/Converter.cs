@@ -5,7 +5,7 @@ namespace UaSwitch;
 /// <summary>Виконує конвертацію останнього слова (вручну та автоматично) і виділеного тексту.</summary>
 internal sealed class Converter
 {
-    private const ushort VK_BACK = 0x08, VK_RETURN = 0x0D, VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_CAPITAL = 0x14, VK_C = 0x43, VK_V = 0x56;
+    private const ushort VK_SPACE = 0x20, VK_BACK = 0x08, VK_RETURN = 0x0D, VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_CAPITAL = 0x14, VK_C = 0x43, VK_V = 0x56;
     private readonly Layouts _layouts;
     private readonly KeyboardMonitor _monitor;
     private readonly AutoDetector _detector;
@@ -97,9 +97,18 @@ internal sealed class Converter
             if (_settings.AutoReplace && TryAutoReplace(w, sendEnter: false)) { corrected = true; goto done; }
             if (!_settings.AutoMode) return "";
             if (!_detector.Ready) return "словники ще не завантажені";
-            if (w.AutoConverted) // слово вже виправлено за першими буквами — лишається тільки кома
+            if (w.AutoConverted) // слово вже виправлено за першими буквами — лишається велика літера чи кома
             {
-                corrected = TryComma(w);
+                string? now = TextOf(w.Keys, w.Keys[0].Shown);
+                if (w.AutoCase == CaseFix.None && now != null && WantsSentenceCap(w, now))
+                {
+                    ApplyCaseFix(w.Keys, CaseFix.Sentence);
+                    Toggle(w, fg, withPrev: false, switchLayout: false);
+                    w.AutoCase = CaseFix.Sentence;
+                    w.ArmedVersion = w.Version;
+                    corrected = true;
+                }
+                else corrected = TryComma(w);
                 goto done;
             }
 
@@ -139,9 +148,10 @@ internal sealed class Converter
             var (ctxUa, ctxEn) = AutoDetector.Context(w.Recent);
             bool layout = _detector.ShouldConvert(curFixed, altFixed, curIsUa, ctxUa, ctxEn);
             if (!layout && fix == CaseFix.TwoCaps && !_detector.IsKnownWord(curFixed, curIsUa)) fix = CaseFix.None;
+            if (fix == CaseFix.None && WantsSentenceCap(w, layout ? altText : curText)) fix = CaseFix.Sentence;
             if (!layout && fix == CaseFix.None)
             {
-                corrected = TryComma(w);
+                corrected = curIsUa && TryApostrophe(w, curText) || TryComma(w);
                 goto done;
             }
 
@@ -153,7 +163,8 @@ internal sealed class Converter
                            && AutoDetector.SingleLetterWord(pa, !curIsUa) && !AutoDetector.SingleLetterWord(pc, curIsUa);
             }
 
-            w.AutoOriginal = curText.ToLowerInvariant();
+            // Скасування лише великої літери не повинно додавати слово у винятки
+            w.AutoOriginal = layout || fix != CaseFix.Sentence ? curText.ToLowerInvariant() : null;
             ApplyCaseFix(w.Keys, fix);
             Toggle(w, fg, withPrev, layout);
             if (fix == CaseFix.Caps) TurnCapsOff();
@@ -389,6 +400,142 @@ internal sealed class Converter
     {
         if (fix == CaseFix.Caps) foreach (var k in keys) k.Mods ^= KeyMods.Caps;
         else if (fix == CaseFix.TwoCaps && keys.Count > 1) keys[1].Mods ^= KeyMods.Shift;
+        else if (fix == CaseFix.Sentence && keys.Count > 0) keys[0].Mods ^= KeyMods.Shift;
+    }
+
+    // ---------- Велика літера на початку речення ----------
+
+    // Скорочення з крапкою, після яких речення не закінчується
+    private static readonly HashSet<string> Abbr = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "вул", "просп", "пров", "бул", "пл", "буд", "кв", "обл", "смт", "ім", "тис", "млн", "млрд", "грн", "коп",
+        "див", "напр", "рис", "табл", "ст", "рр", "пп", "ін", "інш", "тел", "проф", "доц", "акад", "гр", "зам",
+        "кг", "км", "см", "мм", "хв", "сек", "год", "розд", "абз", "арк", "вип", "стор", "прим", "порівн",
+        "etc", "vs", "mr", "mrs", "ms", "dr", "st", "no", "jr", "sr", "inc", "ltd", "approx", "dept", "fig", "vol",
+    };
+
+    /// <summary>Чи закінчилося речення на попередньому слові: «справи.», «Так!», «чому?»</summary>
+    private static bool SentenceEnded(IReadOnlyList<string> recent)
+    {
+        if (recent.Count == 0) return false;
+        string p = recent[recent.Count - 1].TrimEnd('»', '"', ')', '\'');
+        if (p.Length < 3 || ".!?".IndexOf(p[p.Length - 1]) < 0) return false;
+        if (p.EndsWith("..") || p.EndsWith("…")) return false; // три крапки — часто посеред думки
+        string core = p.TrimEnd('.', '!', '?').TrimStart('«', '"', '(');
+        if (core.Length < 2 || core.Any(char.IsDigit) || core.IndexOf('.') >= 0) return false; // ініціали, «т.д.», «5.»
+        if (!core.All(c => char.IsLetter(c) || c == '\'' || c == '’' || c == '-')) return false;
+        return p[p.Length - 1] != '.' || !Abbr.Contains(core);
+    }
+
+    private bool WantsSentenceCap(WordBuffer w, string finalText)
+    {
+        if (!_settings.SentenceCaps || _monitor.CapsOn || finalText.Length == 0 || HasOwnAutocorrect()) return false; // Office робить це сам
+        if (!char.IsLower(finalText[0])) return false;
+        if (!finalText.TrimEnd(".,!?;:\")»".ToCharArray()).All(c => char.IsLetter(c) || c == '\'' || c == '’' || c == '-')) return false;
+        return (w.Keys[0].Mods & KeyMods.AltGr) == 0 && SentenceEnded(w.Recent);
+    }
+
+    // Програми з власною автозаміною: там велику літеру на початку речення ставить сама програма
+    private static readonly string[] OfficeApps = { "WINWORD", "OUTLOOK", "POWERPNT", "ONENOTE", "MSPUB", "EXCEL", "MSACCESS", "soffice.bin", "soffice" };
+    private static uint _officePid;
+    private static bool _officeIs;
+
+    private static bool HasOwnAutocorrect()
+    {
+        try
+        {
+            Native.GetWindowThreadProcessId(Native.GetForegroundWindow(), out uint pid);
+            if (pid != _officePid)
+            {
+                using var p = System.Diagnostics.Process.GetProcessById((int)pid);
+                _officeIs = OfficeApps.Contains(p.ProcessName, StringComparer.OrdinalIgnoreCase);
+                _officePid = pid;
+            }
+            return _officeIs;
+        }
+        catch { return false; }
+    }
+
+    // ---------- Апостроф ----------
+
+    private char ApostropheChar()
+    {
+        var ch = _layouts.CharFor(0xC0, 0x29, KeyMods.None, _layouts.Ua);
+        return ch is "'" or "’" or "ʼ" ? ch[0] : '\'';
+    }
+
+    /// <summary>Запасний шлях (якщо хук не затримав пробіл): «мясо » → «м'ясо ».</summary>
+    private bool TryApostrophe(WordBuffer w, string text)
+    {
+        if (!_settings.FixApostrophe) return false;
+        string core = text.TrimEnd(".,!?;:\")»".ToCharArray());
+        string tail = text.Substring(core.Length);
+        string? fixedCore = _detector.FixApostrophe(core, ApostropheChar());
+        if (fixedCore == null) return false;
+
+        string trailing = new string(w.Trailing.ToArray());
+        Replace(text + trailing, fixedCore + tail + trailing);
+        w.UndoErase = fixedCore.Length + tail.Length + trailing.Length;
+        w.UndoText = text + trailing;
+        w.ScreenText = fixedCore + tail;
+        w.CommaInserted = true; // скасування — той самий Backspace
+        w.ArmedVersion = w.Version;
+        return true;
+    }
+
+    /// <summary>
+    /// Хук затримав пробіл після «мясо»: ставимо апостроф і лише тоді друкуємо пробіл.
+    /// Так Word/Excel не встигають зробити власну автозаміну, і кількість літер для стирання завжди точна.
+    /// </summary>
+    public void ApostropheOnSpace(int version)
+    {
+        bool done = false;
+        try
+        {
+            var fg = Native.GetForegroundWindow();
+            if (!_busy && _settings.FixApostrophe && _settings.AutoMode && !IsExcludedApp(fg, out _))
+                lock (_monitor.Sync)
+                {
+                    var w = _monitor.Word;
+                    if (w.Version == version && w.Keys.Count > 0 && w.Trailing.Count == 0 && w.Hwnd == fg)
+                    {
+                        string? text = TextOf(w.Keys, w.Keys[0].Shown);
+                        string core = text?.TrimEnd(".,!?;:\")»".ToCharArray()) ?? "";
+                        string? fixedCore = text == null ? null : _detector.FixApostrophe(core, ApostropheChar());
+                        if (text != null && fixedCore != null)
+                        {
+                            string tail = text.Substring(core.Length);
+                            var inputs = new List<Native.INPUT>();
+                            for (int i = 0; i < text.Length; i++) AddKey(inputs, VK_BACK);
+                            AddText(inputs, fixedCore + tail + " ");
+                            Send(inputs, guard: false); // пробілу ще не було — автозаміна Word не встигла спрацювати
+
+                            w.Trailing.Add(' ');
+                            w.Version++;
+                            w.UndoErase = fixedCore.Length + tail.Length + 1;
+                            w.UndoText = text + " ";
+                            w.ScreenText = fixedCore + tail;
+                            w.CommaInserted = true; // Backspace одразу після — повернути як було
+                            w.ArmedVersion = w.Version;
+                            done = true;
+                        }
+                    }
+                }
+        }
+        catch (Exception e) { Log.Write("Апостроф: " + e.Message); }
+        if (done) { Corrected?.Invoke(); return; }
+
+        // Апостроф не знадобився — друкуємо затриманий пробіл і робимо звичайну перевірку
+        var space = new List<Native.INPUT>();
+        AddKey(space, VK_SPACE);
+        Send(space);
+        lock (_monitor.Sync)
+        {
+            var w = _monitor.Word;
+            if (w.Version == version && w.Keys.Count > 0) { w.Trailing.Add(' '); w.Version++; }
+            version = w.Version;
+        }
+        AutoCheck(version);
     }
 
     private void TurnCapsOff()
@@ -603,9 +750,14 @@ internal sealed class Converter
         } }
     };
 
-    private static void Send(List<Native.INPUT> inputs)
+    private static void Send(List<Native.INPUT> inputs, bool guard = true)
     {
         if (inputs.Count == 0) return;
+        // Word, Excel, Google Docs: перший Backspace одразу після їхньої автозаміни (велика літера на початку речення)
+        // не стирає символ, а скасовує автозаміну — і одна літера лишається («Мм'ясо»).
+        // Тому спершу друкуємо пробіл і стираємо його: після цього всі Backspace стирають звичайно.
+        if (guard && inputs[0].U.ki.wVk == VK_BACK && (inputs[0].U.ki.dwFlags & Native.KEYEVENTF_KEYUP) == 0)
+            inputs.InsertRange(0, new[] { Unicode(' ', false), Unicode(' ', true), Key(VK_BACK, false), Key(VK_BACK, true) });
         Native.SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<Native.INPUT>());
     }
 }

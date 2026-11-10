@@ -8,12 +8,15 @@ internal sealed class SettingsForm : Form
 {
     private readonly Settings _s;
     private readonly Exceptions _ex;
-    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sound, _flash, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn;
+    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _sound, _flash, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn;
     private readonly AutoReplace _replace;
     private readonly ListView _replaceList = new();
     private readonly ListBox _apps = new(), _words = new();
     private readonly ComboBox _appInput = new() { DropDownStyle = ComboBoxStyle.DropDown };
     private readonly TextBox _wordInput = new();
+    /// <summary>Будь-яка зміна вже збережена — застосувати її.</summary>
+    public event Action? Changed;
+    private bool _ready;
 
     public SettingsForm(Settings settings, Exceptions exceptions, AutoReplace replace)
     {
@@ -23,16 +26,21 @@ internal sealed class SettingsForm : Form
 
         string version = Application.ProductVersion.Split('+')[0];
         Text = $"UaSwitch {version} — налаштування";
-        Font = new Font("Segoe UI", 9f);
+        SuspendLayout();
+        // Розміри задано для 96 DPI; на 125–200 % вікно пропорційно збільшується
+        AutoScaleDimensions = new SizeF(96f, 96f);
         AutoScaleMode = AutoScaleMode.Dpi;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
+        Font = new Font("Segoe UI", 9f);
+        FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(500, 570);
+        ClientSize = new Size(520, 610);
+        KeyPreview = true;
+        KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) Close(); };
         ShowInTaskbar = true;
         try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
-        var tabs = new TabControl { Dock = DockStyle.Top, Height = 520 };
+        var tabs = new TabControl { Dock = DockStyle.Fill };
 
         // ---- Загальне ----
         var general = Page("Загальне");
@@ -43,6 +51,8 @@ internal sealed class SettingsForm : Form
         _space = Check(general, "Пробіл після коми  (Привіт,як → Привіт, як)", _s.SpaceAfterPunct);
         _caps = Check(general, "Виправляти випадковий Caps Lock  (пРИВІТ → Привіт)", _s.FixCaps);
         _twoCaps = Check(general, "Виправляти дві великі на початку  (ПРивіт → Привіт)", _s.FixTwoCaps);
+        _sentence = Check(general, "Велика літера на початку речення  (так. добре → так. Добре)", _s.SentenceCaps);
+        _apostrophe = Check(general, "Ставити апостроф  (мясо → м'ясо, обєкт → об'єкт)", _s.FixApostrophe);
         _sound = Check(general, "Тихий звук при виправленні", _s.Sound);
         _flash = Check(general, "Підсвічувати іконку при виправленні", _s.Flash);
         _autostart = Check(general, "Запускати разом з Windows", SafeAutostart());
@@ -63,13 +73,13 @@ internal sealed class SettingsForm : Form
         AddLabel(apps, "Автоматичне виправлення вимкнено в цих програмах:");
         foreach (var a in _s.ExcludedAppList) _apps.Items.Add(a);
         foreach (var name in RunningApps()) _appInput.Items.Add(name);
-        ListEditor(apps, _apps, _appInput, () => _appInput.Text);
+        ListEditor(apps, _apps, _appInput, () => _appInput.Text, Save);
 
         // ---- Слова-винятки ----
         var words = Page("Слова-винятки");
         AddLabel(words, "Ці слова не виправляються автоматично (як набрано):");
         foreach (var w in _ex.GetAll()) _words.Items.Add(w);
-        ListEditor(words, _words, _wordInput, () => _wordInput.Text);
+        ListEditor(words, _words, _wordInput, () => _wordInput.Text, Save);
 
         // ---- Автозаміна ----
         var repl = Page("Автозаміна");
@@ -77,25 +87,45 @@ internal sealed class SettingsForm : Form
         BuildReplaceEditor(repl);
 
         tabs.TabPages.AddRange(new[] { general, keys, apps, words, repl });
-        Controls.Add(tabs);
 
-        var ok = new Button { Text = "Зберегти", DialogResult = DialogResult.OK, Size = new Size(100, 30), Location = new Point(282, 530) };
-        var cancel = new Button { Text = "Скасувати", DialogResult = DialogResult.Cancel, Size = new Size(100, 30), Location = new Point(390, 530) };
-        // Вікно немодальне (Show), тому закриваємо його явно: DialogResult на кнопках тут не спрацьовує
-        ok.Click += (_, _) => { SaveAll(); DialogResult = DialogResult.OK; Close(); };
-        cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
-        Controls.Add(ok);
-        Controls.Add(cancel);
+        // Нижня смужка: версія ліворуч, підказка про автозбереження праворуч
+        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 40 };
         var about = new LinkLabel
         {
             Text = $"Версія {version} · uaswitch.github.io",
-            AutoSize = true, Location = new Point(12, 537), LinkColor = SystemColors.GrayText,
+            AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(8, 12, 0, 0), LinkColor = SystemColors.GrayText,
         };
         about.Links.Add(about.Text.IndexOf("uaswitch"), "uaswitch.github.io".Length, "https://uaswitch.github.io/UaSwitch/");
         about.LinkClicked += (_, e) => { try { Process.Start(new ProcessStartInfo((string)e.Link.LinkData) { UseShellExecute = true }); } catch { } };
-        Controls.Add(about);
-        AcceptButton = ok;
-        CancelButton = cancel;
+        var hint = new Label
+        {
+            Text = "Зміни зберігаються одразу", AutoSize = true, Dock = DockStyle.Right,
+            Padding = new Padding(0, 12, 10, 0), ForeColor = SystemColors.GrayText,
+        };
+        bottom.Controls.Add(about);
+        bottom.Controls.Add(hint);
+        Controls.Add(tabs);
+        Controls.Add(bottom);
+
+        // Автозбереження: кожна галочка зберігається й застосовується одразу
+        foreach (var c in new[] { _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _sound, _flash,
+                                  _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn })
+            c.CheckedChanged += (_, _) => Save();
+        _autostart.CheckedChanged += (_, _) =>
+        {
+            if (!_ready) return;
+            try { Settings.Autostart = _autostart.Checked; } catch (Exception e) { Log.Write("Автозапуск: " + e.Message); }
+        };
+        ResumeLayout(true);
+        MinimumSize = Size;
+        _ready = true;
+    }
+
+    private void Save()
+    {
+        if (!_ready) return;
+        SaveAll();
+        Changed?.Invoke();
     }
 
     private void SaveAll()
@@ -107,6 +137,8 @@ internal sealed class SettingsForm : Form
         _s.AutoComma = _comma.Checked;
         _s.SpaceAfterPunct = _space.Checked;
         _s.FixTwoCaps = _twoCaps.Checked;
+        _s.SentenceCaps = _sentence.Checked;
+        _s.FixApostrophe = _apostrophe.Checked;
         _s.Sound = _sound.Checked;
         _s.Flash = _flash.Checked;
         _s.PauseHotkeys = _pause.Checked;
@@ -119,7 +151,6 @@ internal sealed class SettingsForm : Form
         _ex.SetAll(_words.Items.Cast<string>());
         _replace.SetAll(_replaceList.Items.Cast<ListViewItem>()
             .Select(i => new KeyValuePair<string, string>(i.Text, (string)i.Tag)));
-        try { Settings.Autostart = _autostart.Checked; } catch (Exception e) { Log.Write("Автозапуск: " + e.Message); }
     }
 
     // ---------- Автозаміна: редактор ----------
@@ -129,15 +160,15 @@ internal sealed class SettingsForm : Form
         _replaceList.View = View.Details;
         _replaceList.FullRowSelect = true;
         _replaceList.HideSelection = false;
-        _replaceList.Size = new Size(430, 170);
+        _replaceList.Size = new Size(450, 150);
         _replaceList.Columns.Add("Скорочення", 110);
-        _replaceList.Columns.Add("Текст", 295);
+        _replaceList.Columns.Add("Текст", 300);
         foreach (var kv in _replace.GetAll()) _replaceList.Items.Add(Row(kv.Key, kv.Value));
 
         var abbr = new TextBox { Width = 150 };
-        var text = new TextBox { Multiline = true, AcceptsReturn = true, ScrollBars = ScrollBars.Vertical, Size = new Size(430, 54) };
-        var add = new Button { Text = "Додати / змінити", AutoSize = true };
-        var remove = new Button { Text = "Видалити вибране", AutoSize = true };
+        var text = new TextBox { Multiline = true, AcceptsReturn = true, ScrollBars = ScrollBars.Vertical, Size = new Size(450, 76) };
+        var add = new Button { Text = "Додати / змінити", Size = new Size(160, 32) };
+        var remove = new Button { Text = "Видалити вибране", Size = new Size(160, 32) };
 
         _replaceList.SelectedIndexChanged += (_, _) =>
         {
@@ -154,10 +185,12 @@ internal sealed class SettingsForm : Form
                 _replaceList.Items.Remove(it);
             _replaceList.Items.Add(Row(a, t));
             abbr.Text = text.Text = "";
+            Save();
         };
         remove.Click += (_, _) =>
         {
             foreach (var it in _replaceList.SelectedItems.Cast<ListViewItem>().ToList()) _replaceList.Items.Remove(it);
+            Save();
         };
 
         var flow = Flow(p);
@@ -216,13 +249,13 @@ internal sealed class SettingsForm : Form
         Flow(p).Controls.Add(l);
     }
 
-    private static void ListEditor(TabPage p, ListBox list, Control input, Func<string> value)
+    private static void ListEditor(TabPage p, ListBox list, Control input, Func<string> value, Action changed)
     {
-        list.Size = new Size(420, 220);
+        list.Size = new Size(420, 320);
         list.SelectionMode = SelectionMode.MultiExtended;
         input.Width = 300;
-        var add = new Button { Text = "Додати", AutoSize = true };
-        var remove = new Button { Text = "Видалити вибране", AutoSize = true };
+        var add = new Button { Text = "Додати", Size = new Size(76, 30) };
+        var remove = new Button { Text = "Видалити вибране", Size = new Size(160, 30) };
         add.Click += (_, _) =>
         {
             var v = value().Trim();
@@ -230,10 +263,12 @@ internal sealed class SettingsForm : Form
             if (v.Length > 0 && !list.Items.Cast<string>().Any(x => x.Equals(v, StringComparison.OrdinalIgnoreCase)))
                 list.Items.Add(v);
             input.Text = "";
+            changed();
         };
         remove.Click += (_, _) =>
         {
             foreach (var item in list.SelectedItems.Cast<object>().ToList()) list.Items.Remove(item);
+            changed();
         };
         var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
         row.Controls.Add(input);

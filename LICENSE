@@ -23,3 +23,9 @@ SOFTWARE.
 The word-frequency data in src/uk.txt.gz and src/en.txt.gz is derived from
 wordfreq (https://github.com/rspeer/wordfreq) and is licensed under
 CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).
+
+The apostrophe data in src/apo.txt.gz is derived from the Ukrainian hunspell
+dictionary of the spell-uk project, as shipped with LibreOffice
+(https://github.com/LibreOffice/dictionaries/tree/master/uk_UA), and is
+licensed under the Mozilla Public License 1.1. The generator script is
+src/model/build_apostrophe.py.
