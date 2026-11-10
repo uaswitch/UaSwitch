@@ -67,12 +67,18 @@ internal sealed class KeyboardMonitor : IDisposable
     public volatile bool DoubleCtrl = true;
 
     public volatile bool AutoMode = true;
+    public volatile bool CapsSwitch;
+    public volatile bool ReplaceEnabled = true;
+    /// <summary>Чи є таке скорочення автозаміни (перевіряється прямо в хуку, щоб не затримувати кожен Enter).</summary>
+    public Func<string, bool>? IsAbbrev;
 
     public event Action? LastWordRequested;
     public event Action? SelectionRequested;
     public event Action<int>? AutoCheckRequested;
     public event Action<int>? EarlyCheckRequested;
     public event Action? UndoRequested;
+    public event Action? LayoutToggleRequested;
+    public event Action<int>? ReplaceOnEnterRequested;
 
     private readonly Layouts _layouts;
     private readonly SynchronizationContext _ui;
@@ -81,7 +87,7 @@ internal sealed class KeyboardMonitor : IDisposable
     private IntPtr _kbHook, _mouseHook;
     private Native.HookProc? _kbProc, _mouseProc;
 
-    private bool _shift, _ctrl, _alt, _win, _caps;
+    private bool _shift, _ctrl, _alt, _win, _caps, _capsSwallowed;
     private enum Mod { None, Shift, Ctrl, Alt, Win }
     private Mod _downMod = Mod.None;      // модифікатор, натиснутий першим (кандидат на «тап»)
     private bool _otherSinceDown;
@@ -154,6 +160,19 @@ internal sealed class KeyboardMonitor : IDisposable
         return sb.ToString();
     }
 
+    private string? TextIn(List<KeyStroke> keys, IntPtr hkl)
+    {
+        if (hkl == IntPtr.Zero) return null;
+        var sb = new System.Text.StringBuilder();
+        foreach (var k in keys)
+        {
+            var c = _layouts.CharFor(k.Vk, k.Scan, k.Mods, hkl);
+            if (c == null) return null;
+            sb.Append(c);
+        }
+        return sb.ToString();
+    }
+
     public bool CapsOn => _caps;
     public void SetCaps(bool on) => _caps = on;
 
@@ -196,13 +215,26 @@ internal sealed class KeyboardMonitor : IDisposable
                 return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
             }
 
+            // Відпускання Caps Lock, натискання якого ми перехопили для перемикання мови
+            if (up && k.vkCode == VK_CAPITAL && _capsSwallowed) { _capsSwallowed = false; return (IntPtr)1; }
+
             if (!down) return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
 
             // Будь-яка звичайна клавіша скасовує «тап» модифікатора
             _otherSinceDown = true;
             _lastTap = Mod.None;
 
-            if (k.vkCode == VK_CAPITAL) { _caps = !_caps; return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam); }
+            if (k.vkCode == VK_CAPITAL)
+            {
+                // Caps Lock перемикає мову; Shift+Caps Lock — звичайні великі літери
+                if (CapsSwitch && Enabled && !_shift && !_ctrl && !_alt && !_win)
+                {
+                    if (!_capsSwallowed) { _capsSwallowed = true; Post(LayoutToggleRequested); } // автоповтор ігноруємо
+                    return (IntPtr)1;
+                }
+                _caps = !_caps;
+                return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
+            }
 
             if (!Enabled) return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
 
@@ -247,7 +279,7 @@ internal sealed class KeyboardMonitor : IDisposable
                 {
                     Word.Trailing.Add(vk == VK_SPACE ? ' ' : '\t');
                     Word.Version++;
-                    if (vk == VK_SPACE && Word.Trailing.Count == 1 && AutoMode && !Word.NoAuto)
+                    if (vk == VK_SPACE && Word.Trailing.Count == 1 && (AutoMode || ReplaceEnabled) && !Word.NoAuto)
                     {
                         int ver = Word.Version;
                         var h = AutoCheckRequested;
@@ -258,7 +290,24 @@ internal sealed class KeyboardMonitor : IDisposable
                 else Word.Clear();
                 return false;
             }
-            if (vk == VK_RETURN) { Word.Clear(); return false; }
+            if (vk == VK_RETURN)
+            {
+                // Скорочення автозаміни перед Enter: Enter затримуємо, спершу підставляємо текст
+                if (ReplaceEnabled && IsAbbrev != null && Word.Keys.Count > 0 && Word.Trailing.Count == 0 && !Word.NoAuto)
+                {
+                    string? cur = TextOf(Word.Keys);
+                    var other = _layouts.Other(Word.Keys[0].Shown);
+                    string? alt = TextIn(Word.Keys, other);
+                    if (cur != null && (IsAbbrev(cur.TrimEnd(AutoReplace.TrailPunct)) || alt != null && IsAbbrev(alt)))
+                    {
+                        int ver = Word.Version;
+                        var h = ReplaceOnEnterRequested;
+                        if (h != null) { _ui.Post(_ => h(ver), null); return true; }
+                    }
+                }
+                Word.Clear();
+                return false;
+            }
 
             var hkl = Native.ForegroundLayout(out var hwnd);
             var mods = (_shift ? KeyMods.Shift : 0) | (_caps ? KeyMods.Caps : 0) | (altGr ? KeyMods.AltGr : 0);

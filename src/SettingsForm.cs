@@ -8,15 +8,18 @@ internal sealed class SettingsForm : Form
 {
     private readonly Settings _s;
     private readonly Exceptions _ex;
-    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sound, _flash, _autostart, _pause, _dShift, _dCtrl;
+    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sound, _flash, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn;
+    private readonly AutoReplace _replace;
+    private readonly ListView _replaceList = new();
     private readonly ListBox _apps = new(), _words = new();
     private readonly ComboBox _appInput = new() { DropDownStyle = ComboBoxStyle.DropDown };
     private readonly TextBox _wordInput = new();
 
-    public SettingsForm(Settings settings, Exceptions exceptions)
+    public SettingsForm(Settings settings, Exceptions exceptions, AutoReplace replace)
     {
         _s = settings;
         _ex = exceptions;
+        _replace = replace;
 
         string version = Application.ProductVersion.Split('+')[0];
         Text = $"UaSwitch {version} — налаштування";
@@ -51,6 +54,7 @@ internal sealed class SettingsForm : Form
         _pause = Check(keys, "Pause — останнє слово,  Shift+Pause — виділений текст", _s.PauseHotkeys);
         _dShift = Check(keys, "Двічі Shift — виправити останнє слово", _s.DoubleShift);
         _dCtrl = Check(keys, "Двічі Ctrl — виправити виділений текст", _s.DoubleCtrl);
+        _capsSwitch = Check(keys, "Caps Lock перемикає мову  (Shift+Caps — великі літери)", _s.CapsSwitch);
         AddLabel(keys, "\nПовторне натискання повертає слово як було.\n" +
                        "Подвійне натискання — два короткі натискання поспіль,\nбез інших клавіш між ними.");
 
@@ -67,7 +71,12 @@ internal sealed class SettingsForm : Form
         foreach (var w in _ex.GetAll()) _words.Items.Add(w);
         ListEditor(words, _words, _wordInput, () => _wordInput.Text);
 
-        tabs.TabPages.AddRange(new[] { general, keys, apps, words });
+        // ---- Автозаміна ----
+        var repl = Page("Автозаміна");
+        _replaceOn = Check(repl, "Замінювати скорочення текстом після пробілу чи Enter", _s.AutoReplace);
+        BuildReplaceEditor(repl);
+
+        tabs.TabPages.AddRange(new[] { general, keys, apps, words, repl });
         Controls.Add(tabs);
 
         var ok = new Button { Text = "Зберегти", DialogResult = DialogResult.OK, Size = new Size(100, 30), Location = new Point(282, 530) };
@@ -103,10 +112,77 @@ internal sealed class SettingsForm : Form
         _s.PauseHotkeys = _pause.Checked;
         _s.DoubleShift = _dShift.Checked;
         _s.DoubleCtrl = _dCtrl.Checked;
+        _s.CapsSwitch = _capsSwitch.Checked;
+        _s.AutoReplace = _replaceOn.Checked;
         _s.ExcludedApps = string.Join(",", _apps.Items.Cast<string>());
         _s.Save();
         _ex.SetAll(_words.Items.Cast<string>());
+        _replace.SetAll(_replaceList.Items.Cast<ListViewItem>()
+            .Select(i => new KeyValuePair<string, string>(i.Text, (string)i.Tag)));
         try { Settings.Autostart = _autostart.Checked; } catch (Exception e) { Log.Write("Автозапуск: " + e.Message); }
+    }
+
+    // ---------- Автозаміна: редактор ----------
+
+    private void BuildReplaceEditor(TabPage p)
+    {
+        _replaceList.View = View.Details;
+        _replaceList.FullRowSelect = true;
+        _replaceList.HideSelection = false;
+        _replaceList.Size = new Size(430, 170);
+        _replaceList.Columns.Add("Скорочення", 110);
+        _replaceList.Columns.Add("Текст", 295);
+        foreach (var kv in _replace.GetAll()) _replaceList.Items.Add(Row(kv.Key, kv.Value));
+
+        var abbr = new TextBox { Width = 150 };
+        var text = new TextBox { Multiline = true, AcceptsReturn = true, ScrollBars = ScrollBars.Vertical, Size = new Size(430, 54) };
+        var add = new Button { Text = "Додати / змінити", AutoSize = true };
+        var remove = new Button { Text = "Видалити вибране", AutoSize = true };
+
+        _replaceList.SelectedIndexChanged += (_, _) =>
+        {
+            if (_replaceList.SelectedItems.Count != 1) return;
+            var it = _replaceList.SelectedItems[0];
+            abbr.Text = it.Text;
+            text.Text = ((string)it.Tag).Replace("\n", Environment.NewLine);
+        };
+        add.Click += (_, _) =>
+        {
+            string a = abbr.Text.Trim(), t = AutoReplace.Normalize(text.Text);
+            if (a.Length == 0 || t.Trim().Length == 0 || a.Contains(' ')) return;
+            foreach (var it in _replaceList.Items.Cast<ListViewItem>().Where(i => i.Text.Equals(a, StringComparison.OrdinalIgnoreCase)).ToList())
+                _replaceList.Items.Remove(it);
+            _replaceList.Items.Add(Row(a, t));
+            abbr.Text = text.Text = "";
+        };
+        remove.Click += (_, _) =>
+        {
+            foreach (var it in _replaceList.SelectedItems.Cast<ListViewItem>().ToList()) _replaceList.Items.Remove(it);
+        };
+
+        var flow = Flow(p);
+        flow.Controls.Add(_replaceList);
+        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 6, 0, 0) };
+        row.Controls.Add(new Label { Text = "Скорочення:", AutoSize = true, Margin = new Padding(3, 7, 3, 3) });
+        row.Controls.Add(abbr);
+        flow.Controls.Add(row);
+        flow.Controls.Add(new Label { Text = "Текст (можна в кілька рядків):", AutoSize = true, Margin = new Padding(3, 6, 3, 2) });
+        flow.Controls.Add(text);
+        var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
+        buttons.Controls.Add(add);
+        buttons.Controls.Add(remove);
+        flow.Controls.Add(buttons);
+        AddLabel(p, "Наприклад: .зп → «З повагою, Руслан».\n" +
+                    "Скорочення краще починати з крапки, щоб вони\n" +
+                    "не збігалися зі звичайними словами.\n" +
+                    "Backspace одразу після заміни — скасувати.");
+    }
+
+    private static ListViewItem Row(string abbr, string text)
+    {
+        var it = new ListViewItem(abbr) { Tag = text };
+        it.SubItems.Add(text.Replace("\n", " ⏎ "));
+        return it;
     }
 
     // ---------- Побудова інтерфейсу ----------

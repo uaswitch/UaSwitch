@@ -11,6 +11,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly Layouts _layouts = new();
     private readonly AutoDetector _detector = new();
     private readonly Exceptions _exceptions = new();
+    private readonly AutoReplace _replace = new();
     private readonly KeyboardMonitor _monitor;
     private readonly Converter _converter;
     private readonly NotifyIcon _tray;
@@ -41,7 +42,12 @@ internal sealed class TrayApp : ApplicationContext
             try { _detector.Load(); }
             catch (Exception ex) { Log.Write($"ПОМИЛКА завантаження словників: {ex}"); }
         });
-        _converter = new Converter(_layouts, _monitor, _detector, _exceptions, _settings);
+        _replace.Load();
+        Settings.MigrateAutostart();
+        _converter = new Converter(_layouts, _monitor, _detector, _exceptions, _settings, _replace);
+        _monitor.IsAbbrev = _replace.Contains;
+        _monitor.LayoutToggleRequested += _converter.ToggleLayout;
+        _monitor.ReplaceOnEnterRequested += _converter.ReplaceOnEnter;
         _monitor.LastWordRequested += _converter.ConvertLastWord;
         _monitor.SelectionRequested += _converter.ConvertSelection;
         _monitor.AutoCheckRequested += _converter.AutoCheck;
@@ -154,7 +160,7 @@ internal sealed class TrayApp : ApplicationContext
     private void ShowSettings()
     {
         if (_settingsForm != null) { _settingsForm.Activate(); return; }
-        _settingsForm = new SettingsForm(_settings, _exceptions);
+        _settingsForm = new SettingsForm(_settings, _exceptions, _replace);
         _settingsForm.FormClosed += (_, _) =>
         {
             if (_settingsForm.DialogResult == DialogResult.OK) Apply(save: false);
@@ -171,6 +177,8 @@ internal sealed class TrayApp : ApplicationContext
         _monitor.DoubleShift = _settings.DoubleShift;
         _monitor.DoubleCtrl = _settings.DoubleCtrl;
         _monitor.AutoMode = _settings.AutoMode;
+        _monitor.CapsSwitch = _settings.CapsSwitch;
+        _monitor.ReplaceEnabled = _settings.AutoReplace;
         if (!_settings.Enabled) _monitor.ResetWord();
         if (save) _settings.Save();
         _iconState = "";
@@ -259,10 +267,14 @@ internal sealed class TrayApp : ApplicationContext
         "   (натисніть ще раз, щоб повернути як було)\n" +
         "•  Виділіть текст, потім Shift+Pause або двічі Ctrl —\n" +
         "   виправити виділений фрагмент\n\n" +
+        "Автозаміна: скорочення + пробіл або Enter → ваш текст\n" +
+        "(список — у налаштуваннях, вкладка «Автозаміна»).\n" +
+        "Caps Lock може перемикати мову (вкладка «Гарячі клавіші»).\n\n" +
         "Іконка: подвійний клік — налаштування, права кнопка — меню.\n" +
         "Меню → «Не виправляти в …» — вимкнути автоматику в програмі,\n" +
         "з якою ви щойно працювали.\n\n" +
-        "Набраний текст ніде не зберігається.",
+        "Набраний текст ніде не зберігається і нікуди не передається.\n" +
+        "На диск записуються лише налаштування, винятки й автозаміна.",
         "UaSwitch — довідка", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
     protected override void ExitThreadCore()

@@ -66,7 +66,7 @@ a{color:var(--accent)}
 section{padding:64px 0 8px}
 h2{font-size:28px;line-height:1.2;margin:0 0 8px;letter-spacing:-.01em}
 .sub{color:var(--muted);margin:0 0 28px;font-size:17px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
 .card .ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--code);margin-bottom:12px;font-size:19px}
 .card h3{margin:0 0 6px;font-size:17px}
@@ -194,7 +194,9 @@ footer a{color:inherit}
       <div class="card"><div class="ico">⌨️</div><h3>Вручну, коли треба</h3><p><kbd>Pause</kbd> або двічі <kbd>Shift</kbd> — останнє слово. Двічі <kbd>Ctrl</kbd> — виділений текст.</p></div>
       <div class="card"><div class="ico">↩️</div><h3>Легко скасувати</h3><p><kbd>Backspace</kbd> одразу після виправлення повертає як було й запам'ятовує слово.</p></div>
       <div class="card"><div class="ico">Aa</div><h3>Регістр</h3><p>Випадковий Caps Lock: <code>пРИВІТ</code> → <code>Привіт</code>. Дві великі: <code>ПРивіт</code> → <code>Привіт</code>.</p></div>
-      <div class="card"><div class="ico">,</div><h3>Коми</h3><p><code>знаю що</code> → <code>знаю, що</code>. Перед «що», «щоб», «але», «який». «Тому що» не чіпає.</p></div>
+      <div class="card"><div class="ico">,</div><h3>Коми і пробіли</h3><p><code>знаю де він</code> → <code>знаю, де він</code>, <code>Привіт,як</code> → <code>Привіт, як</code>. «Тому що» не чіпає.</p></div>
+      <div class="card"><div class="ico">✍️</div><h3>Автозаміна</h3><p>Ваші скорочення стають текстом: <code>.зп</code> → «З повагою, Руслан». Навіть у неправильній розкладці.</p></div>
+      <div class="card"><div class="ico">⇪</div><h3>Caps Lock — мова</h3><p>За бажанням Caps Lock перемикає УКР ↔ АНГЛ одним натисканням, а великі літери — <kbd>Shift</kbd>+<kbd>Caps</kbd>.</p></div>
       <div class="card"><div class="ico">🛡️</div><h3>Не заважає в роботі</h3><p>Не чіпає коди, номери, абревіатури й email. Можна вимкнути в окремих програмах.</p></div>
     </div>
   </section>
@@ -287,7 +289,8 @@ footer a{color:inherit}
       <div class="shield">🔒</div>
       <div>
         <h2 style="font-size:22px">Ваш текст нікуди не потрапляє</h2>
-        <p>Програма пам'ятає лише поточне слово в оперативній пам'яті й не підключається до інтернету. На диск потрапляють тільки налаштування та слова, які ви самі додали у винятки. Код відкритий — це може перевірити будь-хто.</p>
+        <p>Програма пам'ятає лише поточне слово в оперативній пам'яті й не підключається до інтернету. На диск потрапляють тільки налаштування, винятки й ваш список автозаміни. Код відкритий — це може перевірити будь-хто.</p>
+        <p style="margin-top:10px">Антивірус попереджає? Це хибне спрацювання: перемикачі розкладок стежать за клавіатурою, а UaSwitch ще новий і без цифрового підпису. Файл передано в Microsoft на перевірку.</p>
       </div>
     </div>
   </section>

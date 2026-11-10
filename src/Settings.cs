@@ -14,6 +14,8 @@ internal sealed class Settings
     public bool EarlySwitch { get; set; } = true;
     public bool AutoComma { get; set; } = true;
     public bool SpaceAfterPunct { get; set; } = true;
+    public bool CapsSwitch { get; set; } = false;
+    public bool AutoReplace { get; set; } = true;
     public bool FixTwoCaps { get; set; } = true;
     public bool Sound { get; set; } = true;
     public bool Flash { get; set; } = true;
@@ -57,6 +59,8 @@ internal sealed class Settings
                     case nameof(EarlySwitch): s.EarlySwitch = val; break;
                     case nameof(AutoComma): s.AutoComma = val; break;
                     case nameof(SpaceAfterPunct): s.SpaceAfterPunct = val; break;
+                    case nameof(CapsSwitch): s.CapsSwitch = val; break;
+                    case nameof(AutoReplace): s.AutoReplace = val; break;
                     case nameof(FixTwoCaps): s.FixTwoCaps = val; break;
                     case nameof(Sound): s.Sound = val; break;
                     case nameof(Flash): s.Flash = val; break;
@@ -84,6 +88,8 @@ internal sealed class Settings
                 $"{nameof(EarlySwitch)}={EarlySwitch.ToString().ToLower()}",
                 $"{nameof(AutoComma)}={AutoComma.ToString().ToLower()}",
                 $"{nameof(SpaceAfterPunct)}={SpaceAfterPunct.ToString().ToLower()}",
+                $"{nameof(CapsSwitch)}={CapsSwitch.ToString().ToLower()}",
+                $"{nameof(AutoReplace)}={AutoReplace.ToString().ToLower()}",
                 $"{nameof(FixTwoCaps)}={FixTwoCaps.ToString().ToLower()}",
                 $"{nameof(Sound)}={Sound.ToString().ToLower()}",
                 $"{nameof(Flash)}={Flash.ToString().ToLower()}",
@@ -95,21 +101,41 @@ internal sealed class Settings
     }
 
     // ---------- Автозапуск ----------
+    // Ярлик у папці «Автозавантаження» — так роблять звичайні програми, і це видно в Диспетчері завдань.
+    // Ключ реєстру Run старих версій прибирається автоматично.
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunName = "UaSwitch";
+    private static string ShortcutPath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "UaSwitch.lnk");
 
     public static bool Autostart
     {
-        get
-        {
-            using var k = Registry.CurrentUser.OpenSubKey(RunKey);
-            return k?.GetValue(RunName) is string;
-        }
+        get => File.Exists(ShortcutPath) || RunKeyExists();
         set
         {
-            using var k = Registry.CurrentUser.CreateSubKey(RunKey);
-            if (value) k.SetValue(RunName, $"\"{Application.ExecutablePath}\"");
-            else k.DeleteValue(RunName, false);
+            // Спершу ярлик, і лише потім прибираємо старий ключ — щоб у разі помилки автозапуск не зник
+            if (value) Shortcut.Create(ShortcutPath, Application.ExecutablePath, "UaSwitch — перемикач розкладок УКР/АНГЛ");
+            else if (File.Exists(ShortcutPath)) File.Delete(ShortcutPath);
+            RemoveRunKey();
         }
+    }
+
+    /// <summary>Переносить автозапуск зі старого ключа реєстру в ярлик (один раз, тихо).</summary>
+    public static void MigrateAutostart()
+    {
+        try { if (RunKeyExists()) Autostart = true; }
+        catch (Exception e) { Log.Write("Перенесення автозапуску: " + e.Message); }
+    }
+
+    private static bool RunKeyExists()
+    {
+        using var k = Registry.CurrentUser.OpenSubKey(RunKey);
+        return k?.GetValue(RunName) is string;
+    }
+
+    private static void RemoveRunKey()
+    {
+        using var k = Registry.CurrentUser.OpenSubKey(RunKey, true);
+        k?.DeleteValue(RunName, false);
     }
 }

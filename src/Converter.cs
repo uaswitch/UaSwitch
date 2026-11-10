@@ -5,20 +5,22 @@ namespace UaSwitch;
 /// <summary>Виконує конвертацію останнього слова (вручну та автоматично) і виділеного тексту.</summary>
 internal sealed class Converter
 {
-    private const ushort VK_BACK = 0x08, VK_CONTROL = 0x11, VK_CAPITAL = 0x14, VK_C = 0x43, VK_V = 0x56;
+    private const ushort VK_BACK = 0x08, VK_RETURN = 0x0D, VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_CAPITAL = 0x14, VK_C = 0x43, VK_V = 0x56;
     private readonly Layouts _layouts;
     private readonly KeyboardMonitor _monitor;
     private readonly AutoDetector _detector;
     private readonly Exceptions _exceptions;
     private readonly Settings _settings;
+    private readonly AutoReplace _replace;
     private readonly Dictionary<uint, string> _procNames = new();
     private bool _busy;
 
     /// <summary>Слово виправлено (для звуку та підсвічування іконки).</summary>
     public event Action? Corrected;
 
-    public Converter(Layouts layouts, KeyboardMonitor monitor, AutoDetector detector, Exceptions exceptions, Settings settings)
+    public Converter(Layouts layouts, KeyboardMonitor monitor, AutoDetector detector, Exceptions exceptions, Settings settings, AutoReplace replace)
     {
+        _replace = replace;
         _layouts = layouts;
         _monitor = monitor;
         _detector = detector;
@@ -83,8 +85,6 @@ internal sealed class Converter
     {
         if (_busy) return "зайнято";
         if (!_layouts.Ready) return "розкладки не знайдено";
-        if (!_detector.Ready) return "словники ще не завантажені";
-        if (!_settings.AutoMode) return "";
         var fg = Native.GetForegroundWindow();
         if (IsExcludedApp(fg, out _)) return "";
 
@@ -94,6 +94,9 @@ internal sealed class Converter
             var w = _monitor.Word;
             if (w.Version != version || w.Keys.Count == 0 || w.Trailing.Count != 1 || w.NoAuto || w.Hwnd != fg)
                 return "";
+            if (_settings.AutoReplace && TryAutoReplace(w, sendEnter: false)) { corrected = true; goto done; }
+            if (!_settings.AutoMode) return "";
+            if (!_detector.Ready) return "словники ще не завантажені";
             if (w.AutoConverted) // слово вже виправлено за першими буквами — лишається тільки кома
             {
                 corrected = TryComma(w);
@@ -166,6 +169,66 @@ internal sealed class Converter
         return "";
     }
 
+    // ---------- Автозаміна ----------
+
+    /// <summary>Enter після скорочення: хук затримав Enter — підставляємо текст і лише тоді натискаємо Enter.</summary>
+    public void ReplaceOnEnter(int version)
+    {
+        bool done = false;
+        try
+        {
+            var fg = Native.GetForegroundWindow();
+            if (!_busy && _settings.AutoReplace && !IsExcludedApp(fg, out _))
+                lock (_monitor.Sync)
+                {
+                    var w = _monitor.Word;
+                    if (w.Version == version && w.Keys.Count > 0 && w.Trailing.Count == 0 && w.Hwnd == fg)
+                        done = TryAutoReplace(w, sendEnter: true);
+                }
+        }
+        catch { }
+        if (!done) { var inputs = new List<Native.INPUT>(); AddKey(inputs, VK_RETURN); Send(inputs); }
+        _monitor.ResetWord();
+        if (done) Corrected?.Invoke();
+    }
+
+    /// <summary>Скорочення → текст. Скорочення, набране не в тій розкладці, теж спрацьовує. Під замком.</summary>
+    private bool TryAutoReplace(WordBuffer w, bool sendEnter)
+    {
+        var shown = w.Keys[0].Shown;
+        if (w.Keys.Any(k => k.Shown != shown)) return false;
+        string? typed = TextOf(w.Keys, shown);
+        if (typed == null) return false;
+        if (!_replace.TryMatch(typed, out var repl, out var suffix))
+        {
+            string? alt = TextOf(w.Keys, _layouts.Other(shown));
+            if (alt == null || alt.IndexOfAny(AutoReplace.TrailPunct) >= 0 || !_replace.TryMatch(alt, out repl, out suffix)) return false;
+        }
+        string trailing = new string(w.Trailing.ToArray());
+        string newText = repl + suffix + trailing;
+        var inputs = new List<Native.INPUT>();
+        for (int i = 0; i < typed.Length + trailing.Length; i++) AddKey(inputs, VK_BACK);
+        AddText(inputs, newText);
+        if (sendEnter) AddKey(inputs, VK_RETURN);
+        Send(inputs);
+
+        w.UndoErase = AutoReplace.EraseCount(newText);
+        w.UndoText = typed + trailing;
+        w.ScreenText = (repl + suffix).Replace('\n', ' ');
+        w.CommaInserted = true; // спільний механізм скасування через Backspace
+        w.ArmedVersion = w.Version;
+        return true;
+    }
+
+    // ---------- Caps Lock перемикає мову ----------
+
+    public void ToggleLayout()
+    {
+        if (!_layouts.Ready) return;
+        var hkl = Native.ForegroundLayout(out var fg);
+        SwitchLayout(fg, _layouts.Other(hkl));
+    }
+
     // ---------- Перемикання за першими буквами ----------
 
     public void EarlyCheck(int version)
@@ -187,6 +250,7 @@ internal sealed class Converter
 
             string? curText = TextOf(w.Keys, cur), altText = TextOf(w.Keys, alt);
             if (curText == null || altText == null || _exceptions.Blocks(curText)) return;
+            if (_settings.AutoReplace && (_replace.IsPrefix(curText) || _replace.IsPrefix(altText))) return; // набирається скорочення
             if (!_detector.ShouldSwitchEarly(curText, altText, curIsUa)) return;
 
             bool withPrev = false;
@@ -481,8 +545,6 @@ internal sealed class Converter
             {
                 var d = new DataObject();
                 d.SetData(DataFormats.UnicodeText, s);
-                // Не засмічувати журнал буфера обміну Windows (Win+V) проміжним текстом
-                d.SetData("ExcludeClipboardContentFromMonitorProcessing", new MemoryStream(new byte[4]));
                 Clipboard.SetDataObject(d, true);
                 return;
             }
@@ -510,6 +572,14 @@ internal sealed class Converter
     {
         foreach (char c in text)
         {
+            if (c == '\r') continue;
+            if (c == '\n')
+            {
+                list.Add(Key(VK_SHIFT, false));
+                AddKey(list, VK_RETURN);
+                list.Add(Key(VK_SHIFT, true));
+                continue;
+            }
             list.Add(Unicode(c, false));
             list.Add(Unicode(c, true));
         }
