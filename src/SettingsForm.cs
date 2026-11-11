@@ -115,6 +115,10 @@ internal sealed class SettingsForm : Form
         {
             if (!_ready) return;
             try { Settings.Autostart = _autostart.Checked; } catch (Exception e) { Log.Write("Автозапуск: " + e.Message); }
+            if (_autostart.Checked && Settings.RunningFromTemp)
+                MessageBox.Show(this, "Програму запущено прямо з архіву, з тимчасової папки. Після перезавантаження цього файлу вже не буде.\n\n" +
+                    "Розпакуйте архів у постійну папку (наприклад, Документи), запустіть UaSwitch звідти — і автозапуск запрацює.",
+                    "UaSwitch — автозапуск", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         };
         ResumeLayout(true);
         MinimumSize = Size;

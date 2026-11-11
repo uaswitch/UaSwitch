@@ -19,6 +19,20 @@ internal static class Shortcut
         Marshal.ReleaseComObject(link);
     }
 
+    /// <summary>Куди веде ярлик (повний шлях) або null.</summary>
+    public static string? GetTarget(string lnkPath)
+    {
+        var link = (IShellLinkW)new ShellLink();
+        try
+        {
+            ((IPersistFile)link).Load(lnkPath, 0);
+            var sb = new StringBuilder(1024);
+            link.GetPath(sb, sb.Capacity, IntPtr.Zero, 0x4 /* SLGP_RAWPATH */);
+            return sb.Length > 0 ? Environment.ExpandEnvironmentVariables(sb.ToString()) : null;
+        }
+        finally { Marshal.ReleaseComObject(link); }
+    }
+
     [ComImport, Guid("00021401-0000-0000-C000-000000000046")]
     private class ShellLink { }
 

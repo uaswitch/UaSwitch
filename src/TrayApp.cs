@@ -44,6 +44,8 @@ internal sealed class TrayApp : ApplicationContext
         });
         _replace.Load();
         Settings.MigrateAutostart();
+        Settings.RefreshAutostart();
+        Log.Write($"Запуск з «{Application.ExecutablePath}»");
         _converter = new Converter(_layouts, _monitor, _detector, _exceptions, _settings, _replace);
         _monitor.IsAbbrev = _replace.Contains;
         _monitor.NeedsApostrophe = w => _settings.FixApostrophe && _detector.FixApostrophe(w.TrimEnd(".,!?;:\")»".ToCharArray()), '\'') != null;
@@ -71,6 +73,7 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Налаштування…", null, (_, _) => ShowSettings());
         menu.Items.Add("Довідка", null, (_, _) => ShowHelp());
+        menu.Items.Add("Перевірити оновлення", null, (_, _) => OpenUrl("https://github.com/uaswitch/UaSwitch/releases/latest"));
         menu.Items.Add("Вихід", null, (_, _) => ExitThread());
         menu.Opening += (_, _) => RefreshMenu();
 
@@ -86,7 +89,11 @@ internal sealed class TrayApp : ApplicationContext
         UpdateIcon();
 
         Log.Write("Хуки та іконку встановлено");
-        if (!_layouts.Ready)
+        if (Settings.RunningFromTemp)
+            _tray.ShowBalloonTip(10000, "UaSwitch запущено прямо з архіву",
+                "Розпакуйте архів у постійну папку (наприклад, Документи) і запускайте звідти — інакше автозапуск не працюватиме.",
+                ToolTipIcon.Warning);
+        else if (!_layouts.Ready)
             _tray.ShowBalloonTip(8000, "UaSwitch",
                 "Не знайдено українську та/або англійську розкладку. Додайте обидві в Параметри → Час і мова → Мова.",
                 ToolTipIcon.Warning);
@@ -254,6 +261,12 @@ internal sealed class TrayApp : ApplicationContext
         p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
         p.CloseFigure();
         return p;
+    }
+
+    private static void OpenUrl(string url)
+    {
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch (Exception e) { Log.Write("Посилання: " + e.Message); }
     }
 
     private static void ShowHelp() => MessageBox.Show(
