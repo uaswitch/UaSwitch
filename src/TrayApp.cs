@@ -73,12 +73,16 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Налаштування…", null, (_, _) => ShowSettings());
         menu.Items.Add("Довідка", null, (_, _) => ShowHelp());
-        menu.Items.Add("Перевірити оновлення", null, (_, _) => OpenUrl("https://github.com/uaswitch/UaSwitch/releases/latest"));
+        menu.Items.Add("Перевірити оновлення", null, (_, _) => CheckForUpdates(manual: true));
         menu.Items.Add("Вихід", null, (_, _) => ExitThread());
         menu.Opening += (_, _) => RefreshMenu();
 
         _tray = new NotifyIcon { ContextMenuStrip = menu, Visible = true, Text = "UaSwitch" };
         _tray.MouseDoubleClick += (_, e) => { if (e.Button == MouseButtons.Left) ShowSettings(); };
+        _tray.BalloonTipClicked += (_, _) =>
+        {
+            if (_pendingRelease is { } r) { _pendingRelease = null; Updater.ShowNewVersion(r, _settings); }
+        };
 
         Apply(save: false);
         _monitor.Start();
@@ -86,10 +90,28 @@ internal sealed class TrayApp : ApplicationContext
         _timer = new System.Windows.Forms.Timer { Interval = 150 };
         _timer.Tick += (_, _) => { TrackForegroundApp(); UpdateIcon(); };
         _timer.Start();
+
+        // Автоперевірка оновлень (якщо ввімкнена): через хвилину після старту, далі раз на добу
+        _updateTimer = new System.Windows.Forms.Timer { Interval = 60_000 };
+        _updateTimer.Tick += (_, _) =>
+        {
+            _updateTimer.Interval = 3_600_000;
+            if (_settings.CheckUpdates && _settings.LastUpdateCheck != DateTime.Today.ToString("yyyy-MM-dd"))
+                CheckForUpdates(manual: false);
+        };
+        _updateTimer.Start();
         UpdateIcon();
 
         Log.Write("Хуки та іконку встановлено");
-        if (Settings.RunningFromTemp)
+        if (Settings.Autostart && Settings.RunAsAdminFlag())
+        {
+            Log.Write("Увімкнено «Запускати від імені адміністратора» — автозапуск не спрацює");
+            _tray.ShowBalloonTip(15000, "Автозапуск не спрацює",
+                "У властивостях UaSwitch.exe (вкладка «Сумісність») стоїть «Запускати від імені адміністратора». " +
+                "Windows не запускає такі програми під час входу. Зніміть цю галочку.",
+                ToolTipIcon.Warning);
+        }
+        else if (Settings.RunningFromTemp)
             _tray.ShowBalloonTip(10000, "UaSwitch запущено прямо з архіву",
                 "Розпакуйте архів у постійну папку (наприклад, Документи) і запускайте звідти — інакше автозапуск не працюватиме.",
                 ToolTipIcon.Warning);
@@ -97,10 +119,14 @@ internal sealed class TrayApp : ApplicationContext
             _tray.ShowBalloonTip(8000, "UaSwitch",
                 "Не знайдено українську та/або англійську розкладку. Додайте обидві в Параметри → Час і мова → Мова.",
                 ToolTipIcon.Warning);
-        else
+        else if (!_settings.WelcomeShown) // привітання — лише при першому запуску
+        {
             _tray.ShowBalloonTip(4000, "UaSwitch працює",
                 "Подвійний клік по іконці — налаштування. Backspace одразу після виправлення — скасувати.",
                 ToolTipIcon.Info);
+            _settings.WelcomeShown = true;
+            _settings.Save();
+        }
     }
 
     // ---------- Меню ----------
@@ -171,6 +197,7 @@ internal sealed class TrayApp : ApplicationContext
         if (_settingsForm != null) { _settingsForm.Activate(); return; }
         _settingsForm = new SettingsForm(_settings, _exceptions, _replace);
         _settingsForm.Changed += () => Apply(save: false); // кожна зміна зберігається й діє одразу
+        _settingsForm.CheckUpdatesRequested += () => CheckForUpdates(manual: true);
         _settingsForm.FormClosed += (_, _) =>
         {
             _settingsForm = null;
@@ -262,6 +289,47 @@ internal sealed class TrayApp : ApplicationContext
         p.CloseFigure();
         return p;
     }
+
+    private System.Windows.Forms.Timer _updateTimer = null!;
+    private bool _checking;
+
+    /// <summary>Перевірка нової версії у фоні. Вручну — завжди показуємо результат; автоматично — лише якщо є нова.</summary>
+    private void CheckForUpdates(bool manual)
+    {
+        if (_checking) return;
+        _checking = true;
+        var ui = SynchronizationContext.Current;
+        Task.Run(() =>
+        {
+            var r = Updater.Fetch();
+            ui?.Post(_ =>
+            {
+                _checking = false;
+                if (r == null)
+                {
+                    if (manual) OpenUrl(Updater.ReleasesUrl); // немає зв'язку з GitHub — хай людина гляне сама
+                    return;
+                }
+                _settings.LastUpdateCheck = DateTime.Today.ToString("yyyy-MM-dd");
+                _settings.Save();
+                bool newer = r.Version > Updater.Current;
+                Log.Write($"Перевірка оновлень: остання {r.Version}, у вас {Updater.Current}");
+                if (newer && (manual || _settings.SkippedVersion != r.Version.ToString()))
+                {
+                    if (manual) Updater.ShowNewVersion(r, _settings);
+                    else
+                    {
+                        _pendingRelease = r;
+                        _tray.ShowBalloonTip(10000, $"Вийшла UaSwitch {r.Version}", "Клацніть, щоб побачити, що нового.", ToolTipIcon.Info);
+                    }
+                }
+                else if (manual)
+                    MessageBox.Show($"У вас остання версія — {Updater.Current}.", "UaSwitch", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }, null);
+        });
+    }
+
+    private Updater.Release? _pendingRelease;
 
     private static void OpenUrl(string url)
     {

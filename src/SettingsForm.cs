@@ -8,7 +8,7 @@ internal sealed class SettingsForm : Form
 {
     private readonly Settings _s;
     private readonly Exceptions _ex;
-    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _sound, _flash, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn;
+    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _sound, _flash, _updates, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn;
     private readonly AutoReplace _replace;
     private readonly ListView _replaceList = new();
     private readonly ListBox _apps = new(), _words = new();
@@ -16,6 +16,8 @@ internal sealed class SettingsForm : Form
     private readonly TextBox _wordInput = new();
     /// <summary>Будь-яка зміна вже збережена — застосувати її.</summary>
     public event Action? Changed;
+    /// <summary>Натиснуто «Перевірити оновлення».</summary>
+    public event Action? CheckUpdatesRequested;
     private bool _ready;
 
     public SettingsForm(Settings settings, Exceptions exceptions, AutoReplace replace)
@@ -55,6 +57,7 @@ internal sealed class SettingsForm : Form
         _apostrophe = Check(general, "Ставити апостроф  (мясо → м'ясо, обєкт → об'єкт)", _s.FixApostrophe);
         _sound = Check(general, "Тихий звук при виправленні", _s.Sound);
         _flash = Check(general, "Підсвічувати іконку при виправленні", _s.Flash);
+        _updates = Check(general, "Повідомляти про нові версії  (раз на добу перевіряє GitHub)", _s.CheckUpdates);
         _autostart = Check(general, "Запускати разом з Windows", SafeAutostart());
         AddLink(general, "Відкрити журнал роботи", () => OpenNotepad(Log.FilePath));
         AddLabel(general, "\nПорада: Backspace одразу після автовиправлення скасовує його\nі додає слово у винятки.");
@@ -89,18 +92,21 @@ internal sealed class SettingsForm : Form
         tabs.TabPages.AddRange(new[] { general, keys, apps, words, repl });
 
         // Нижня смужка: версія ліворуч, підказка про автозбереження праворуч
-        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 40 };
+        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 48 };
+        const string update = "Перевірити оновлення", site = "uaswitch.github.io";
         var about = new LinkLabel
         {
-            Text = $"Версія {version} · Ruslan Pichkar · uaswitch.github.io",
-            AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(8, 12, 0, 0), LinkColor = SystemColors.GrayText,
+            Text = $"Версія {version} · {update}\nRuslan Pichkar · {site}",
+            AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(8, 6, 0, 0), LinkColor = SystemColors.GrayText,
         };
-        about.Links.Add(about.Text.IndexOf("uaswitch"), "uaswitch.github.io".Length, "https://uaswitch.github.io/UaSwitch/");
-        about.LinkClicked += (_, e) => { try { Process.Start(new ProcessStartInfo((string)e.Link.LinkData) { UseShellExecute = true }); } catch { } };
+        about.Links.Clear();
+        about.Links.Add(about.Text.IndexOf(update), update.Length, "update");
+        about.Links.Add(about.Text.IndexOf(site), site.Length, "https://uaswitch.github.io/UaSwitch/");
+        about.LinkClicked += (_, e) => { if ((string)e.Link.LinkData == "update") { CheckUpdatesRequested?.Invoke(); return; } try { Process.Start(new ProcessStartInfo((string)e.Link.LinkData) { UseShellExecute = true }); } catch { } };
         var hint = new Label
         {
             Text = "Зміни зберігаються одразу", AutoSize = true, Dock = DockStyle.Right,
-            Padding = new Padding(0, 12, 10, 0), ForeColor = SystemColors.GrayText,
+            Padding = new Padding(0, 15, 10, 0), ForeColor = SystemColors.GrayText,
         };
         bottom.Controls.Add(about);
         bottom.Controls.Add(hint);
@@ -108,7 +114,7 @@ internal sealed class SettingsForm : Form
         Controls.Add(bottom);
 
         // Автозбереження: кожна галочка зберігається й застосовується одразу
-        foreach (var c in new[] { _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _sound, _flash,
+        foreach (var c in new[] { _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _sound, _flash, _updates,
                                   _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn })
             c.CheckedChanged += (_, _) => Save();
         _autostart.CheckedChanged += (_, _) =>
@@ -143,6 +149,7 @@ internal sealed class SettingsForm : Form
         _s.FixTwoCaps = _twoCaps.Checked;
         _s.SentenceCaps = _sentence.Checked;
         _s.FixApostrophe = _apostrophe.Checked;
+        _s.CheckUpdates = _updates.Checked;
         _s.Sound = _sound.Checked;
         _s.Flash = _flash.Checked;
         _s.PauseHotkeys = _pause.Checked;
@@ -255,7 +262,7 @@ internal sealed class SettingsForm : Form
 
     private static void ListEditor(TabPage p, ListBox list, Control input, Func<string> value, Action changed)
     {
-        list.Size = new Size(420, 320);
+        list.Size = new Size(420, 220);
         list.SelectionMode = SelectionMode.MultiExtended;
         input.Width = 300;
         var add = new Button { Text = "Додати", Size = new Size(76, 30) };
