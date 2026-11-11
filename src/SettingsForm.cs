@@ -89,18 +89,21 @@ internal sealed class SettingsForm : Form
         tabs.TabPages.AddRange(new[] { general, keys, apps, words, repl });
 
         // Нижня смужка: версія ліворуч, підказка про автозбереження праворуч
-        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 40 };
+        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 48 };
+        const string update = "Перевірити оновлення", site = "uaswitch.github.io";
         var about = new LinkLabel
         {
-            Text = $"Версія {version} · Ruslan Pichkar · uaswitch.github.io",
-            AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(8, 12, 0, 0), LinkColor = SystemColors.GrayText,
+            Text = $"Версія {version} · {update}\nRuslan Pichkar · {site}",
+            AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(8, 6, 0, 0), LinkColor = SystemColors.GrayText,
         };
-        about.Links.Add(about.Text.IndexOf("uaswitch"), "uaswitch.github.io".Length, "https://uaswitch.github.io/UaSwitch/");
+        about.Links.Clear();
+        about.Links.Add(about.Text.IndexOf(update), update.Length, "https://github.com/uaswitch/UaSwitch/releases/latest");
+        about.Links.Add(about.Text.IndexOf(site), site.Length, "https://uaswitch.github.io/UaSwitch/");
         about.LinkClicked += (_, e) => { try { Process.Start(new ProcessStartInfo((string)e.Link.LinkData) { UseShellExecute = true }); } catch { } };
         var hint = new Label
         {
             Text = "Зміни зберігаються одразу", AutoSize = true, Dock = DockStyle.Right,
-            Padding = new Padding(0, 12, 10, 0), ForeColor = SystemColors.GrayText,
+            Padding = new Padding(0, 15, 10, 0), ForeColor = SystemColors.GrayText,
         };
         bottom.Controls.Add(about);
         bottom.Controls.Add(hint);
