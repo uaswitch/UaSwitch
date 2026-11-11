@@ -157,6 +157,26 @@ internal sealed class Settings
         catch (Exception e) { Log.Write("Оновлення автозапуску: " + e.Message); }
     }
 
+    /// <summary>
+    /// Стоїть галочка «Запускати від імені адміністратора» (Властивості → Сумісність).
+    /// Такі програми Windows мовчки не запускає під час входу в систему.
+    /// </summary>
+    public static bool RunAsAdminFlag()
+    {
+        const string layers = @"Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers";
+        foreach (var hive in new[] { Registry.CurrentUser, Registry.LocalMachine })
+        {
+            try
+            {
+                using var k = hive.OpenSubKey(layers);
+                if (k?.GetValue(Application.ExecutablePath) is string v && v.IndexOf("RUNASADMIN", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            }
+            catch { }
+        }
+        return false;
+    }
+
     private static void SetRunKey(string exe)
     {
         using var k = Registry.CurrentUser.CreateSubKey(RunKey);

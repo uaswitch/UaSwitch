@@ -89,7 +89,15 @@ internal sealed class TrayApp : ApplicationContext
         UpdateIcon();
 
         Log.Write("Хуки та іконку встановлено");
-        if (Settings.RunningFromTemp)
+        if (Settings.Autostart && Settings.RunAsAdminFlag())
+        {
+            Log.Write("Увімкнено «Запускати від імені адміністратора» — автозапуск не спрацює");
+            _tray.ShowBalloonTip(15000, "Автозапуск не спрацює",
+                "У властивостях UaSwitch.exe (вкладка «Сумісність») стоїть «Запускати від імені адміністратора». " +
+                "Windows не запускає такі програми під час входу. Зніміть цю галочку.",
+                ToolTipIcon.Warning);
+        }
+        else if (Settings.RunningFromTemp)
             _tray.ShowBalloonTip(10000, "UaSwitch запущено прямо з архіву",
                 "Розпакуйте архів у постійну папку (наприклад, Документи) і запускайте звідти — інакше автозапуск не працюватиме.",
                 ToolTipIcon.Warning);
