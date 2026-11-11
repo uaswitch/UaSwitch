@@ -133,6 +133,30 @@ internal sealed class Settings
         catch (Exception e) { Log.Write("Перенесення автозапуску: " + e.Message); }
     }
 
+    /// <summary>Програму запущено з тимчасової папки (прямо з архіву) — після закриття архіву файлу вже не буде.</summary>
+    public static bool RunningFromTemp =>
+        Application.ExecutablePath.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Ярлик автозапуску пам'ятає шлях до exe. Якщо програму перенесли або розпакували нову версію в іншу папку,
+    /// ярлик веде в нікуди, а галочка все одно «увімкнена». Тому при кожному запуску спрямовуємо його на поточний файл.
+    /// </summary>
+    public static void RefreshAutostart()
+    {
+        try
+        {
+            if (!File.Exists(ShortcutPath)) return;
+            string? target = Shortcut.GetTarget(ShortcutPath);
+            string self = Application.ExecutablePath;
+            Log.Write($"Автозапуск: ярлик веде на «{target}»");
+            if (string.Equals(target, self, StringComparison.OrdinalIgnoreCase)) return;
+            if (RunningFromTemp && target != null && File.Exists(target)) return; // робоча копія є — не псуємо ярлик тимчасовою
+            Shortcut.Create(ShortcutPath, self, "UaSwitch — перемикач розкладок УКР/АНГЛ");
+            Log.Write($"Автозапуск: ярлик оновлено на «{self}»");
+        }
+        catch (Exception e) { Log.Write("Оновлення ярлика автозапуску: " + e.Message); }
+    }
+
     private static bool RunKeyExists()
     {
         using var k = Registry.CurrentUser.OpenSubKey(RunKey);
