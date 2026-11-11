@@ -21,6 +21,10 @@ internal sealed class Settings
     public bool FixApostrophe { get; set; } = true;
     /// <summary>Привітальне сповіщення вже показано (показуємо лише при першому запуску).</summary>
     public bool WelcomeShown { get; set; }
+    /// <summary>Раз на добу перевіряти на GitHub, чи вийшла нова версія. За замовчуванням вимкнено.</summary>
+    public bool CheckUpdates { get; set; }
+    public string SkippedVersion { get; set; } = "";
+    public string LastUpdateCheck { get; set; } = "";
     public bool Sound { get; set; } = true;
     public bool Flash { get; set; } = true;
     /// <summary>Програми (імена процесів без .exe), де автовиправлення вимкнено.</summary>
@@ -69,6 +73,9 @@ internal sealed class Settings
                     case nameof(SentenceCaps): s.SentenceCaps = val; break;
                     case nameof(FixApostrophe): s.FixApostrophe = val; break;
                     case nameof(WelcomeShown): s.WelcomeShown = val; break;
+                    case nameof(CheckUpdates): s.CheckUpdates = val; break;
+                    case nameof(SkippedVersion): s.SkippedVersion = raw; break;
+                    case nameof(LastUpdateCheck): s.LastUpdateCheck = raw; break;
                     case nameof(Sound): s.Sound = val; break;
                     case nameof(Flash): s.Flash = val; break;
                     case nameof(ExcludedApps): s.ExcludedApps = raw; break;
@@ -101,6 +108,9 @@ internal sealed class Settings
                 $"{nameof(SentenceCaps)}={SentenceCaps.ToString().ToLower()}",
                 $"{nameof(FixApostrophe)}={FixApostrophe.ToString().ToLower()}",
                 $"{nameof(WelcomeShown)}={WelcomeShown.ToString().ToLower()}",
+                $"{nameof(CheckUpdates)}={CheckUpdates.ToString().ToLower()}",
+                $"{nameof(SkippedVersion)}={SkippedVersion}",
+                $"{nameof(LastUpdateCheck)}={LastUpdateCheck}",
                 $"{nameof(Sound)}={Sound.ToString().ToLower()}",
                 $"{nameof(Flash)}={Flash.ToString().ToLower()}",
                 "# Програми без автовиправлення (імена процесів через кому):",
