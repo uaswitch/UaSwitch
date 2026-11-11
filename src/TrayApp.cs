@@ -105,10 +105,14 @@ internal sealed class TrayApp : ApplicationContext
             _tray.ShowBalloonTip(8000, "UaSwitch",
                 "Не знайдено українську та/або англійську розкладку. Додайте обидві в Параметри → Час і мова → Мова.",
                 ToolTipIcon.Warning);
-        else
+        else if (!_settings.WelcomeShown) // привітання — лише при першому запуску
+        {
             _tray.ShowBalloonTip(4000, "UaSwitch працює",
                 "Подвійний клік по іконці — налаштування. Backspace одразу після виправлення — скасувати.",
                 ToolTipIcon.Info);
+            _settings.WelcomeShown = true;
+            _settings.Save();
+        }
     }
 
     // ---------- Меню ----------
