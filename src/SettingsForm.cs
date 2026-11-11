@@ -262,7 +262,7 @@ internal sealed class SettingsForm : Form
 
     private static void ListEditor(TabPage p, ListBox list, Control input, Func<string> value, Action changed)
     {
-        list.Size = new Size(420, 320);
+        list.Size = new Size(420, 220);
         list.SelectionMode = SelectionMode.MultiExtended;
         input.Width = 300;
         var add = new Button { Text = "Додати", Size = new Size(76, 30) };
