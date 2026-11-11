@@ -107,8 +107,8 @@ internal sealed class Settings
     }
 
     // ---------- Автозапуск ----------
-    // Ярлик у папці «Автозавантаження» — так роблять звичайні програми, і це видно в Диспетчері завдань.
-    // Ключ реєстру Run старих версій прибирається автоматично.
+    // Запис у реєстрі HKCU\...\Run — так роблять Viber, Chrome, Google Drive. Ярлик у папці «Автозавантаження»
+    // (версії 0.6–0.7.1) Windows могла не запускати для файлів, завантажених з інтернету, — його переносимо в реєстр.
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunName = "UaSwitch";
     private static string ShortcutPath =>
@@ -116,20 +116,19 @@ internal sealed class Settings
 
     public static bool Autostart
     {
-        get => File.Exists(ShortcutPath) || RunKeyExists();
+        get => RunKeyExists() || File.Exists(ShortcutPath);
         set
         {
-            // Спершу ярлик, і лише потім прибираємо старий ключ — щоб у разі помилки автозапуск не зник
-            if (value) Shortcut.Create(ShortcutPath, Application.ExecutablePath, "UaSwitch — перемикач розкладок УКР/АНГЛ");
-            else if (File.Exists(ShortcutPath)) File.Delete(ShortcutPath);
-            RemoveRunKey();
+            if (value) SetRunKey(Application.ExecutablePath);
+            else RemoveRunKey();
+            try { if (File.Exists(ShortcutPath)) File.Delete(ShortcutPath); } catch { }
         }
     }
 
-    /// <summary>Переносить автозапуск зі старого ключа реєстру в ярлик (один раз, тихо).</summary>
+    /// <summary>Переносить автозапуск зі старого ярлика в реєстр (один раз, тихо).</summary>
     public static void MigrateAutostart()
     {
-        try { if (RunKeyExists()) Autostart = true; }
+        try { if (File.Exists(ShortcutPath)) { Autostart = true; Log.Write("Автозапуск перенесено з ярлика в реєстр"); } }
         catch (Exception e) { Log.Write("Перенесення автозапуску: " + e.Message); }
     }
 
@@ -138,23 +137,30 @@ internal sealed class Settings
         Application.ExecutablePath.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Ярлик автозапуску пам'ятає шлях до exe. Якщо програму перенесли або розпакували нову версію в іншу папку,
-    /// ярлик веде в нікуди, а галочка все одно «увімкнена». Тому при кожному запуску спрямовуємо його на поточний файл.
+    /// Запис автозапуску пам'ятає шлях до exe. Якщо програму перенесли або розпакували нову версію в іншу папку,
+    /// він веде в нікуди, а галочка все одно «увімкнена». Тому при кожному запуску спрямовуємо його на поточний файл.
     /// </summary>
     public static void RefreshAutostart()
     {
         try
         {
-            if (!File.Exists(ShortcutPath)) return;
-            string? target = Shortcut.GetTarget(ShortcutPath);
+            using var k = Registry.CurrentUser.OpenSubKey(RunKey);
+            if (k?.GetValue(RunName) is not string cmd) return;
+            string target = cmd.Trim().Trim('"');
             string self = Application.ExecutablePath;
-            Log.Write($"Автозапуск: ярлик веде на «{target}»");
+            Log.Write($"Автозапуск: реєстр веде на «{target}»");
             if (string.Equals(target, self, StringComparison.OrdinalIgnoreCase)) return;
-            if (RunningFromTemp && target != null && File.Exists(target)) return; // робоча копія є — не псуємо ярлик тимчасовою
-            Shortcut.Create(ShortcutPath, self, "UaSwitch — перемикач розкладок УКР/АНГЛ");
-            Log.Write($"Автозапуск: ярлик оновлено на «{self}»");
+            if (RunningFromTemp && File.Exists(target)) return; // робоча копія є — не псуємо запис тимчасовою
+            SetRunKey(self);
+            Log.Write($"Автозапуск: оновлено на «{self}»");
         }
-        catch (Exception e) { Log.Write("Оновлення ярлика автозапуску: " + e.Message); }
+        catch (Exception e) { Log.Write("Оновлення автозапуску: " + e.Message); }
+    }
+
+    private static void SetRunKey(string exe)
+    {
+        using var k = Registry.CurrentUser.CreateSubKey(RunKey);
+        k.SetValue(RunName, "\"" + exe + "\"");
     }
 
     private static bool RunKeyExists()
