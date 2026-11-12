@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="author" content="Ruslan Pichkar">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Конфіденційність — UaSwitch</title>
+<meta name="description" content="Що UaSwitch робить і чого не робить з набраним текстом: лише пам'ять, без телеметрії, поля паролів не чіпає.">
+<link rel="icon" href="icon.png">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#15171c;--muted:#5b6170;--line:#e2e5ea;--accent:#0057b7;--code:#eceff4}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b21;--text:#e8eaee;--muted:#9aa1ae;--line:#272c35;--accent:#3d8bff;--code:#222731}}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 "Segoe UI",system-ui,-apple-system,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+header{padding:20px 0} header a{text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:10px;color:var(--text)}
+header img{width:32px;height:32px}
+main{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 28px 24px;margin-bottom:32px}
+h1{font-size:28px;margin:22px 0 8px} h2{font-size:20px;margin:26px 0 6px}
+code{background:var(--code);padding:1px 6px;border-radius:5px;font-size:.92em}
+table{border-collapse:collapse;width:100%;margin:8px 0;font-size:15px} th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+li{margin:6px 0}
+footer{color:var(--muted);font-size:14px;padding:0 0 32px}
+@media (max-width:560px){main{padding:4px 16px 18px} h1{font-size:24px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><a href="./"><img src="icon.png" alt="">UaSwitch</a></header>
+<main>
+<h1>Конфіденційність UaSwitch</h1>
+<p>UaSwitch працює на рівні клавіатури, тому бачить усе, що ви набираєте. Ось що програма робить і чого не робить з цими даними.</p>
+<h2>Набраний текст</h2>
+<ul>
+<li><strong>Лише в пам'яті.</strong> Щоб виправляти розкладку й ставити коми, програма тримає в пам'яті поточне слово й кілька попередніх слів речення. Цей буфер очищається, коли ви клацаєте мишею, перемикаєте вікно або починаєте нове речення. На диск він не записується ніколи.</li>
+<li><strong>Поля паролів.</strong> У полях пароля (браузери, Telegram, звичайні вікна Windows) програма нічого не виправляє — навіть після «Показати пароль». «Слова» з цифрами чи символами (<code>Qwe12rty</code>, <code>p@ss</code>) теж не чіпає.</li>
+<li><strong>Журнал роботи</strong> містить лише технічні події («запущено», «хуки встановлено», «поле пароля»). Набраний текст у журнал не потрапляє. Журнал можна відкрити з налаштувань і перевірити.</li>
+</ul>
+<h2>Що зберігається на диску</h2>
+<p>Усе — у папці <code>%APPDATA%\UaSwitch</code>, звичайні текстові файли:</p>
+<table>
+<tr><th>Файл</th><th>Що в ньому</th></tr>
+<tr><td><code>settings.ini</code></td><td>ваші налаштування (галочки)</td></tr>
+<tr><td><code>autoreplace.txt</code></td><td>ваші скорочення для автозаміни</td></tr>
+<tr><td><code>exceptions.txt</code></td><td>слова-винятки: додаються, коли ви скасовуєте виправлення клавішею Backspace</td></tr>
+<tr><td><code>uaswitch.log</code></td><td>журнал роботи (без набраного тексту)</td></tr>
+</table>
+<p>Усі списки видно й можна редагувати в налаштуваннях. Щоб видалити все, закрийте програму й видаліть цю папку.</p>
+<h2>Мережа</h2>
+<ul>
+<li><strong>Ніякої телеметрії, аналітики, реклами чи облікових записів.</strong></li>
+<li>Єдиний запит в інтернет — <strong>перевірка нової версії</strong>: коли ви натискаєте «Перевірити оновлення» або якщо ввімкнете щоденну перевірку (за замовчуванням вимкнена). Це один запит до публічного API GitHub (<code>api.github.com</code>, сторінка останнього релізу). Жодних ваших даних він не містить; програма нічого не завантажує й не встановлює сама.</li>
+<li>Можна заблокувати UaSwitch у брандмауері Windows — програма повністю працюватиме без інтернету.</li>
+</ul>
+<h2>Перевірка</h2>
+<p>Повний вихідний код відкритий (ліцензія MIT): <a href="https://github.com/uaswitch/UaSwitch">https://github.com/uaswitch/UaSwitch</a>. Програму можна зібрати самостійно скриптом <code>src/build.sh</code>. Мережеву активність можна перевірити, наприклад, Process Monitor чи TCPView.</p>
+<p>Питання й зауваження — у <a href="https://github.com/uaswitch/UaSwitch/issues">Issues</a>.</p>
+<p>Розробник: Ruslan Pichkar.</p>
+<p><a href="https://github.com/uaswitch/UaSwitch/blob/main/PRIVACY.md">English version</a></p>
+</main>
+<footer>Розробник — Ruslan Pichkar · Код — ліцензія MIT · <a href="./">На головну</a></footer>
+</div>
+</body>
+</html>
