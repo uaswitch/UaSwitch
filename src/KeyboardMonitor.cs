@@ -76,6 +76,8 @@ internal sealed class KeyboardMonitor : IDisposable
     public event Action? SelectionRequested;
     public event Action<int>? AutoCheckRequested;
     public event Action<int>? EarlyCheckRequested;
+    /// <summary>Почалося нове слово — час заздалегідь з'ясувати, чи це поле пароля.</summary>
+    public event Action? WordStarted;
     public event Action? UndoRequested;
     public event Action? LayoutToggleRequested;
     public event Action<int>? ReplaceOnEnterRequested;
@@ -351,6 +353,7 @@ internal sealed class KeyboardMonitor : IDisposable
             }
             Word.Keys.Add(new KeyStroke { Vk = vk, Scan = k.scanCode, Mods = mods, Shown = hkl });
             Word.Version++;
+            if (Word.Keys.Count == 1 && WordStarted is { } ws) _ui.Post(_ => ws(), null);
             if (AutoMode && Word.Keys.Count >= 4 && !Word.AutoConverted && !Word.NoAuto)
             {
                 int ver = Word.Version;

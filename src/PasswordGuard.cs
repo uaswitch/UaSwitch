@@ -24,9 +24,32 @@ internal static class PasswordGuard
     /// <summary>
     /// true — поле пароля, або програма не відповіла вчасно (тоді краще нічого не виправляти).
     /// </summary>
+    // Останній результат «пароль» для вікна: Chrome вмикає підтримку спецможливостей не миттєво,
+    // тому перевіряємо вже на першій літері слова й пам'ятаємо результат кілька секунд.
+    private static IntPtr _pwdHwnd;
+    private static DateTime _pwdUntil;
+
+    /// <summary>Перевірка у фоні на першій літері слова (нічого не чекає).</summary>
+    public static void Warmup(IntPtr fg)
+    {
+        IntPtr focus = Native.FocusWindow(fg);
+        var t = new Thread(() =>
+        {
+            try
+            {
+                bool pwd = UiaIsPassword() == true || ProtectedByAccessibility(focus);
+                if (pwd) { _pwdHwnd = focus; _pwdUntil = DateTime.UtcNow.AddSeconds(5); }
+            }
+            catch { }
+        }) { IsBackground = true };
+        t.SetApartmentState(ApartmentState.MTA);
+        t.Start();
+    }
+
     public static bool IsPasswordField(IntPtr fg)
     {
         IntPtr focus = Native.FocusWindow(fg);
+        if (focus == _pwdHwnd && DateTime.UtcNow < _pwdUntil) return true; // нещодавно було поле пароля (не продовжуємо)
         try
         {
             var cls = new StringBuilder(64);
@@ -48,12 +71,19 @@ internal static class PasswordGuard
         t.Start();
         bool timedOut = !t.Join(300);
         bool result = timedOut || uia == true || msaa == true;
+        if (result) Remember(focus);
 
         // Діагностика в журнал (без тексту): лише коли щось змінилося
         string cls2 = ClassOf(focus);
         string diag = $"Поле: {cls2}, UIA={Show(uia)}, MSAA={Show(msaa)}{(timedOut ? ", не відповіло за 300 мс" : "")} → {(result ? "пароль" : "звичайне")}";
         if (diag != _lastDiag) { _lastDiag = diag; Log.Write(diag); }
         return result;
+    }
+
+    private static bool Remember(IntPtr focus)
+    {
+        _pwdHwnd = focus; _pwdUntil = DateTime.UtcNow.AddSeconds(5);
+        return true;
     }
 
     private static string _lastDiag = "";
