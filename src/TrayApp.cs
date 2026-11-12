@@ -56,6 +56,7 @@ internal sealed class TrayApp : ApplicationContext
         _monitor.SelectionRequested += _converter.ConvertSelection;
         _monitor.AutoCheckRequested += _converter.AutoCheck;
         _monitor.EarlyCheckRequested += _converter.EarlyCheck;
+        _monitor.WordStarted += () => { if (_settings.SkipPasswords) PasswordGuard.Warmup(Native.GetForegroundWindow()); };
         _monitor.UndoRequested += _converter.UndoAuto;
         _converter.Corrected += OnCorrected;
 

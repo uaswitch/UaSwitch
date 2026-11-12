@@ -87,6 +87,7 @@ internal sealed class Converter
         if (!_layouts.Ready) return "розкладки не знайдено";
         var fg = Native.GetForegroundWindow();
         if (IsExcludedApp(fg, out _)) return "";
+        if (InPasswordField(fg)) return "поле пароля";
 
         bool corrected;
         lock (_monitor.Sync)
@@ -122,6 +123,7 @@ internal sealed class Converter
             string? curText = TextOf(w.Keys, cur), altText = TextOf(w.Keys, alt);
             if (curText == null || altText == null) return "не вдалося прочитати символи";
             if (_exceptions.Blocks(curText)) return "";
+            if (_settings.SkipPasswords && PasswordGuard.LooksLikeSecret(curText)) return ""; // «Qwe12rty», «p@ss»
             if (TrySpaceAfterPunct(w, curText, curIsUa)) { corrected = true; goto done; }
             if (HasInnerPunct(curText) && !altText.All(IsWordChar) || LooksLikeFileOrDomain(curText))
             {
@@ -189,7 +191,7 @@ internal sealed class Converter
         try
         {
             var fg = Native.GetForegroundWindow();
-            if (!_busy && _settings.AutoReplace && !IsExcludedApp(fg, out _))
+            if (!_busy && _settings.AutoReplace && !IsExcludedApp(fg, out _) && !InPasswordField(fg))
                 lock (_monitor.Sync)
                 {
                     var w = _monitor.Word;
@@ -246,7 +248,7 @@ internal sealed class Converter
     {
         if (_busy || !_layouts.Ready || !_detector.Ready || !_settings.AutoMode || !_settings.EarlySwitch) return;
         var fg = Native.GetForegroundWindow();
-        if (IsExcludedApp(fg, out _)) return;
+        if (IsExcludedApp(fg, out _) || InPasswordField(fg)) return;
 
         lock (_monitor.Sync)
         {
@@ -493,7 +495,7 @@ internal sealed class Converter
         try
         {
             var fg = Native.GetForegroundWindow();
-            if (!_busy && _settings.FixApostrophe && _settings.AutoMode && !IsExcludedApp(fg, out _))
+            if (!_busy && _settings.FixApostrophe && _settings.AutoMode && !IsExcludedApp(fg, out _) && !InPasswordField(fg))
                 lock (_monitor.Sync)
                 {
                     var w = _monitor.Word;
@@ -545,6 +547,9 @@ internal sealed class Converter
         Send(inputs);
         _monitor.SetCaps(false);
     }
+
+    /// <summary>Курсор у полі пароля — автоматично нічого не змінюємо (ручні клавіші працюють як завжди).</summary>
+    private bool InPasswordField(IntPtr fg) => _settings.SkipPasswords && PasswordGuard.IsPasswordField(fg);
 
     private bool IsExcludedApp(IntPtr fg, out string name)
     {

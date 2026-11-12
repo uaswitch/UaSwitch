@@ -8,7 +8,7 @@ internal sealed class SettingsForm : Form
 {
     private readonly Settings _s;
     private readonly Exceptions _ex;
-    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _sound, _flash, _updates, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn;
+    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _passwords, _sound, _flash, _updates, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn;
     private readonly AutoReplace _replace;
     private readonly ListView _replaceList = new();
     private readonly ListBox _apps = new(), _words = new();
@@ -55,6 +55,7 @@ internal sealed class SettingsForm : Form
         _twoCaps = Check(general, "Виправляти дві великі на початку  (ПРивіт → Привіт)", _s.FixTwoCaps);
         _sentence = Check(general, "Велика літера на початку речення  (так. добре → так. Добре)", _s.SentenceCaps);
         _apostrophe = Check(general, "Ставити апостроф  (мясо → м'ясо, обєкт → об'єкт)", _s.FixApostrophe);
+        _passwords = Check(general, "Не виправляти в полях паролів  (і слова з цифрами: Qwe12rty)", _s.SkipPasswords);
         _sound = Check(general, "Тихий звук при виправленні", _s.Sound);
         _flash = Check(general, "Підсвічувати іконку при виправленні", _s.Flash);
         _updates = Check(general, "Повідомляти про нові версії  (раз на добу перевіряє GitHub)", _s.CheckUpdates);
@@ -114,7 +115,7 @@ internal sealed class SettingsForm : Form
         Controls.Add(bottom);
 
         // Автозбереження: кожна галочка зберігається й застосовується одразу
-        foreach (var c in new[] { _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _sound, _flash, _updates,
+        foreach (var c in new[] { _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _passwords, _sound, _flash, _updates,
                                   _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn })
             c.CheckedChanged += (_, _) => Save();
         _autostart.CheckedChanged += (_, _) =>
@@ -150,6 +151,7 @@ internal sealed class SettingsForm : Form
         _s.SentenceCaps = _sentence.Checked;
         _s.FixApostrophe = _apostrophe.Checked;
         _s.CheckUpdates = _updates.Checked;
+        _s.SkipPasswords = _passwords.Checked;
         _s.Sound = _sound.Checked;
         _s.Flash = _flash.Checked;
         _s.PauseHotkeys = _pause.Checked;
