@@ -62,9 +62,10 @@ internal static class PasswordGuard
 
         // Запит до іншої програми — у фоні з обмеженням часу, щоб «завислий» застосунок не гальмував UaSwitch
         bool? uia = null, msaa = null;
+        bool byLabel = false;
         var t = new Thread(() =>
         {
-            try { uia = UiaIsPassword(); } catch { }
+            try { uia = UiaIsPassword(); byLabel = _byLabel; _byLabel = false; } catch { }
             if (uia != true) try { msaa = ProtectedByAccessibility(focus); } catch { }
         }) { IsBackground = true };
         t.SetApartmentState(ApartmentState.MTA);
@@ -75,7 +76,7 @@ internal static class PasswordGuard
 
         // Діагностика в журнал (без тексту): лише коли щось змінилося
         string cls2 = ClassOf(focus);
-        string diag = $"Поле: {cls2}, UIA={Show(uia)}, MSAA={Show(msaa)}{(timedOut ? ", не відповіло за 300 мс" : "")} → {(result ? "пароль" : "звичайне")}";
+        string diag = $"Поле: {cls2}, UIA={Show(uia)}{(byLabel ? " (за назвою поля)" : "")}, MSAA={Show(msaa)}{(timedOut ? ", не відповіло за 300 мс" : "")} → {(result ? "пароль" : "звичайне")}";
         if (diag != _lastDiag) { _lastDiag = diag; Log.Write(diag); }
         return result;
     }
@@ -96,7 +97,11 @@ internal static class PasswordGuard
     }
 
     // ---------- UI Automation: властивість IsPassword елемента з фокусом ----------
-    private const int UIA_IsPasswordPropertyId = 30019;
+    private const int UIA_IsPasswordPropertyId = 30019, UIA_NamePropertyId = 30005, UIA_AutomationIdPropertyId = 30011, UIA_HelpTextPropertyId = 30013;
+    private static readonly System.Text.RegularExpressions.Regex PasswordLabel = new(
+        @"парол|password|passwd|passcode|pwd|\bpin\b|пін-?код|kennwort|hasło|mot de passe",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    [ThreadStatic] private static bool _byLabel;
 
     [ComImport, Guid("ff48dba4-60ef-4201-aa87-54103eef594e")]
     private class CUIAutomation { }
@@ -123,8 +128,15 @@ internal static class PasswordGuard
         if (_uia.GetFocusedElement(out var el) != 0 || el == null) return null;
         try
         {
-            if (el.GetCurrentPropertyValue(UIA_IsPasswordPropertyId, out var v) != 0) return null;
-            return v is bool b && b;
+            if (el.GetCurrentPropertyValue(UIA_IsPasswordPropertyId, out var v) == 0 && v is bool b && b) return true;
+            // «Показати пароль» робить поле звичайним текстовим, але його назва лишається: «Введіть пароль», id="password"
+            foreach (int prop in new[] { UIA_NamePropertyId, UIA_AutomationIdPropertyId, UIA_HelpTextPropertyId })
+                if (el.GetCurrentPropertyValue(prop, out var t) == 0 && t is string str && PasswordLabel.IsMatch(str))
+                {
+                    _byLabel = true;
+                    return true;
+                }
+            return false;
         }
         finally { Marshal.ReleaseComObject(el); }
     }
