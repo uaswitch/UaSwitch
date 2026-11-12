@@ -38,18 +38,68 @@ internal static class PasswordGuard
         catch { }
 
         // Запит до іншої програми — у фоні з обмеженням часу, щоб «завислий» застосунок не гальмував UaSwitch
-        bool result = false;
-        var t = new Thread(() => { try { result = ProtectedByAccessibility(focus); } catch { } }) { IsBackground = true };
+        bool? uia = null, msaa = null;
+        var t = new Thread(() =>
+        {
+            try { uia = UiaIsPassword(); } catch { }
+            if (uia != true) try { msaa = ProtectedByAccessibility(focus); } catch { }
+        }) { IsBackground = true };
         t.SetApartmentState(ApartmentState.MTA);
         t.Start();
-        if (!t.Join(250))
-        {
-            Log.Write("Поле пароля: програма не відповіла вчасно — виправлення пропущено");
-            return true;
-        }
+        bool timedOut = !t.Join(300);
+        bool result = timedOut || uia == true || msaa == true;
+
+        // Діагностика в журнал (без тексту): лише коли щось змінилося
+        string cls2 = ClassOf(focus);
+        string diag = $"Поле: {cls2}, UIA={Show(uia)}, MSAA={Show(msaa)}{(timedOut ? ", не відповіло за 300 мс" : "")} → {(result ? "пароль" : "звичайне")}";
+        if (diag != _lastDiag) { _lastDiag = diag; Log.Write(diag); }
         return result;
     }
 
+    private static string _lastDiag = "";
+    private static string Show(bool? b) => b == null ? "?" : b.Value ? "так" : "ні";
+    private static string ClassOf(IntPtr h)
+    {
+        var sb = new StringBuilder(64);
+        try { GetClassName(h, sb, sb.Capacity); } catch { }
+        return sb.ToString();
+    }
+
+    // ---------- UI Automation: властивість IsPassword елемента з фокусом ----------
+    private const int UIA_IsPasswordPropertyId = 30019;
+
+    [ComImport, Guid("ff48dba4-60ef-4201-aa87-54103eef594e")]
+    private class CUIAutomation { }
+
+    [ComImport, Guid("30cbe57d-d9d0-452a-ab13-7ac5ac4825ee"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IUIAutomation
+    {
+        void CompareElements(); void CompareRuntimeIds(); void GetRootElement(); void ElementFromHandle(); void ElementFromPoint();
+        [PreserveSig] int GetFocusedElement(out IUIAutomationElement? element);
+    }
+
+    [ComImport, Guid("d22108aa-8ac5-49a5-837b-37bbb3d7591e"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IUIAutomationElement
+    {
+        void SetFocus(); void GetRuntimeId(); void FindFirst(); void FindAll(); void FindFirstBuildCache(); void FindAllBuildCache(); void BuildUpdatedCache();
+        [PreserveSig] int GetCurrentPropertyValue(int propertyId, out object? value);
+    }
+
+    private static IUIAutomation? _uia;
+
+    private static bool? UiaIsPassword()
+    {
+        _uia ??= (IUIAutomation)new CUIAutomation();
+        if (_uia.GetFocusedElement(out var el) != 0 || el == null) return null;
+        try
+        {
+            if (el.GetCurrentPropertyValue(UIA_IsPasswordPropertyId, out var v) != 0) return null;
+            return v is bool b && b;
+        }
+        finally { Marshal.ReleaseComObject(el); }
+    }
+
+    // ---------- MSAA (запасний шлях): стан «захищено» ----------
     private static bool ProtectedByAccessibility(IntPtr hwnd)
     {
         if (AccessibleObjectFromWindow(hwnd, OBJID_CLIENT, ref IID_IAccessible, out var o) != 0 || o is not IAccessible acc)
@@ -59,7 +109,12 @@ internal static class PasswordGuard
         {
             object? f;
             try { f = acc.accFocus; } catch { f = null; }
-            if (f is int child && child != 0) return IsProtected(acc, child);
+            if (f is int child && child != 0)
+            {
+                // Chrome повертає від'ємні ідентифікатори нащадків — беремо сам елемент
+                try { if (acc.get_accChild(child) is IAccessible c) return IsProtected(c, 0); } catch { }
+                return IsProtected(acc, child);
+            }
             if (f is IAccessible inner && !ReferenceEquals(inner, acc)) { acc = inner; continue; }
             break;
         }
