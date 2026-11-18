@@ -97,6 +97,8 @@ internal sealed class KeyboardMonitor : IDisposable
     /// <summary>Чи програма вікна в списку «не виправляти» (рахується в потоці інтерфейсу).</summary>
     public Func<IntPtr, bool>? IsExcludedWindow;
     private IntPtr _exclHwnd;
+    /// <summary>Вікно, в якому востаннє друкували (для команд з меню іконки).</summary>
+    public IntPtr LastWindow => _exclHwnd;
     private volatile bool _excluded;
 
     /// <summary>
@@ -207,6 +209,7 @@ internal sealed class KeyboardMonitor : IDisposable
             int m = (int)wParam;
             if (m is Native.WM_LBUTTONDOWN or Native.WM_RBUTTONDOWN or Native.WM_MBUTTONDOWN)
             {
+                CheckForeground(); // до кліку по іконці в треї тут ще вікно, де виділено текст
                 ResetWord();
                 _lastTap = Mod.None;
                 _otherSinceDown = true;

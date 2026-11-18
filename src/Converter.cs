@@ -669,6 +669,56 @@ internal sealed class Converter
 
     // ---------- Виділений текст ----------
 
+    /// <summary>Повідомлення для людини (заголовок, текст) — показує іконка в треї.</summary>
+    public event Action<string, string>? Notify;
+
+    public void TransliterateSelection(IntPtr restoreTo = default) => TransformSelection(t =>
+        TextTools.HasCyrillic(t) ? TextTools.Transliterate(t) : null,
+        "Виділіть текст українською", "Наприклад, ім'я та прізвище: «Шевченко Олександр».", restoreTo);
+
+    public void AmountSelection(IntPtr restoreTo = default) => TransformSelection(TextTools.AmountInWords,
+        "Виділіть суму числом", "Наприклад: 1250,50 або 1 250.50 грн.", restoreTo);
+
+    /// <summary>Копіює виділене, перетворює і вставляє на те саме місце. Буфер обміну відновлюється.</summary>
+    private async void TransformSelection(Func<string, string?> transform, string failTitle, string failText, IntPtr restoreTo)
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            // З меню іконки: повертаємо фокус у вікно, де виділено текст (але не на панель завдань)
+            if (restoreTo != IntPtr.Zero && !Native.ClassName(restoreTo).StartsWith("Shell_", StringComparison.Ordinal))
+            {
+                Native.SetForegroundWindow(restoreTo);
+                await Task.Delay(150);
+            }
+            await WaitModifiersReleased();
+            var fg = Native.GetForegroundWindow();
+            if (IsExcludedApp(fg, out _)) return;
+            var backup = ClipboardBackup.Save();
+
+            uint seq = Native.GetClipboardSequenceNumber();
+            SendChord(VK_CONTROL, VK_C);
+            string? text = await WaitClipboardChange(seq, 700) ? TryGetText() : null;
+            string? result = string.IsNullOrWhiteSpace(text) ? null : transform(text!);
+            if (result == null || result == text)
+            {
+                backup.Restore();
+                Notify?.Invoke(failTitle, failText);
+                return;
+            }
+            seq = Native.GetClipboardSequenceNumber();
+            TrySetText(result);
+            await WaitClipboardChange(seq, 300);
+            SendChord(VK_CONTROL, VK_V);
+            await Task.Delay(250); // програма має встигнути прочитати буфер
+            backup.Restore();
+            _monitor.ResetWord();
+        }
+        catch { /* не заважаємо роботі користувача */ }
+        finally { _busy = false; }
+    }
+
     public async void ConvertSelection()
     {
         if (_busy || !_layouts.Ready) return;

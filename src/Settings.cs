@@ -15,6 +15,8 @@ internal sealed class Settings
     public bool AutoComma { get; set; } = true;
     public bool SpaceAfterPunct { get; set; } = true;
     public bool CapsSwitch { get; set; } = false;
+    public bool HotkeyTranslit { get; set; } = true;
+    public bool HotkeyAmount { get; set; } = true;
     public bool AutoReplace { get; set; } = true;
     public bool FixTwoCaps { get; set; } = true;
     public bool SentenceCaps { get; set; } = true;
@@ -70,6 +72,8 @@ internal sealed class Settings
                     case nameof(AutoComma): s.AutoComma = val; break;
                     case nameof(SpaceAfterPunct): s.SpaceAfterPunct = val; break;
                     case nameof(CapsSwitch): s.CapsSwitch = val; break;
+                    case nameof(HotkeyTranslit): s.HotkeyTranslit = val; break;
+                    case nameof(HotkeyAmount): s.HotkeyAmount = val; break;
                     case nameof(AutoReplace): s.AutoReplace = val; break;
                     case nameof(FixTwoCaps): s.FixTwoCaps = val; break;
                     case nameof(SentenceCaps): s.SentenceCaps = val; break;
@@ -106,6 +110,8 @@ internal sealed class Settings
                 $"{nameof(AutoComma)}={AutoComma.ToString().ToLower()}",
                 $"{nameof(SpaceAfterPunct)}={SpaceAfterPunct.ToString().ToLower()}",
                 $"{nameof(CapsSwitch)}={CapsSwitch.ToString().ToLower()}",
+                $"{nameof(HotkeyTranslit)}={HotkeyTranslit.ToString().ToLower()}",
+                $"{nameof(HotkeyAmount)}={HotkeyAmount.ToString().ToLower()}",
                 $"{nameof(AutoReplace)}={AutoReplace.ToString().ToLower()}",
                 $"{nameof(FixTwoCaps)}={FixTwoCaps.ToString().ToLower()}",
                 $"{nameof(SentenceCaps)}={SentenceCaps.ToString().ToLower()}",

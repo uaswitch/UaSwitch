@@ -63,6 +63,12 @@ internal sealed class TrayApp : ApplicationContext
             if (_settings.SkipPasswords) PasswordGuard.Warmup(Native.GetForegroundWindow());
         };
         _monitor.IsExcludedWindow = hwnd => _converter.IsExcludedApp(hwnd, out _);
+        _converter.Notify += (title, text) => { _pendingRelease = null; _tray.ShowBalloonTip(5000, title, text, ToolTipIcon.Info); };
+        _hotkeys = new HotkeyWindow(id =>
+        {
+            if (id == 1) _converter.TransliterateSelection();
+            else if (id == 2) _converter.AmountSelection();
+        });
         _converter.ExceptionAdded += word => { _pendingRelease = null; _tray.ShowBalloonTip(6000, $"«{word}» більше не виправлятиметься",
             "Слово додано у винятки, бо виправлення скасували Backspace. Прибрати: Налаштування → Слова-винятки.", ToolTipIcon.Info); };
         _monitor.UndoRequested += _converter.UndoAuto;
@@ -79,6 +85,9 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(_miEnabled);
         menu.Items.Add(_miAutoMode);
         menu.Items.Add(_miExcludeApp);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Транслітерувати виділене  (Ctrl+Alt+T)", null, (_, _) => _converter.TransliterateSelection(_monitor.LastWindow));
+        menu.Items.Add("Сума прописом  (Ctrl+Alt+S)", null, (_, _) => _converter.AmountSelection(_monitor.LastWindow));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Налаштування…", null, (_, _) => ShowSettings());
         menu.Items.Add("Довідка", null, (_, _) => ShowHelp());
@@ -224,6 +233,8 @@ internal sealed class TrayApp : ApplicationContext
         _monitor.DoubleCtrl = _settings.DoubleCtrl;
         _monitor.AutoMode = _settings.AutoMode;
         _monitor.CapsSwitch = _settings.CapsSwitch;
+        _hotkeys?.Set(1, _settings.HotkeyTranslit && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, 'T');
+        _hotkeys?.Set(2, _settings.HotkeyAmount && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, 'S');
         _monitor.ReplaceEnabled = _settings.AutoReplace;
         if (!_settings.Enabled) _monitor.ResetWord();
         if (save) _settings.Save();
@@ -298,6 +309,32 @@ internal sealed class TrayApp : ApplicationContext
         p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
         p.CloseFigure();
         return p;
+    }
+
+    private HotkeyWindow? _hotkeys;
+
+    /// <summary>Невидиме вікно для глобальних гарячих клавіш (RegisterHotKey).</summary>
+    private sealed class HotkeyWindow : NativeWindow, IDisposable
+    {
+        private readonly Action<int> _onHotkey;
+        private readonly HashSet<int> _registered = new();
+        public HotkeyWindow(Action<int> onHotkey) { _onHotkey = onHotkey; CreateHandle(new CreateParams()); }
+
+        public void Set(int id, bool on, uint mods, char key)
+        {
+            if (_registered.Remove(id)) Native.UnregisterHotKey(Handle, id);
+            if (!on) return;
+            if (Native.RegisterHotKey(Handle, id, mods | Native.MOD_NOREPEAT, key)) _registered.Add(id);
+            else Log.Write($"Гаряча клавіша Ctrl+Alt+{key} зайнята іншою програмою");
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == 0x0312) _onHotkey((int)m.WParam); // WM_HOTKEY
+            base.WndProc(ref m);
+        }
+
+        public void Dispose() { foreach (var id in _registered) Native.UnregisterHotKey(Handle, id); DestroyHandle(); }
     }
 
     private System.Windows.Forms.Timer _updateTimer = null!;
