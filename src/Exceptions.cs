@@ -22,7 +22,7 @@ internal sealed class Exceptions
                     foreach (var line in File.ReadAllLines(FilePath))
                     {
                         var w = line.Trim();
-                        if (w.Length > 0 && !w.StartsWith("#")) _set.Add(w.ToLowerInvariant());
+                        if (w.Length > 0 && !w.StartsWith("#") && Norm(w) is { Length: > 0 } n) _set.Add(n);
                     }
                     _loadedAt = File.GetLastWriteTimeUtc(FilePath);
                 }
@@ -34,20 +34,21 @@ internal sealed class Exceptions
     public bool Contains(string word)
     {
         ReloadIfChanged();
-        lock (_set) return _set.Contains(word.ToLowerInvariant());
+        lock (_set) return _set.Contains(Norm(word));
     }
 
     /// <summary>Слово заблоковане: точний виняток або виняток-префікс (4+ літери), записаний при скасуванні за першими буквами.</summary>
     public bool Blocks(string word)
     {
         ReloadIfChanged();
-        string w = word.ToLowerInvariant();
+        string w = Norm(word);
         lock (_set) return _set.Contains(w) || _set.Any(e => e.Length >= 4 && w.StartsWith(e, StringComparison.Ordinal));
     }
 
     public void Add(string word)
     {
-        word = word.ToLowerInvariant();
+        word = Norm(word);
+        if (word.Length == 0) return;
         lock (_set)
         {
             if (!_set.Add(word)) return;
@@ -74,7 +75,7 @@ internal sealed class Exceptions
         lock (_set)
         {
             _set.Clear();
-            foreach (var w in words) if (w.Trim().Length > 0) _set.Add(w.Trim().ToLowerInvariant());
+            foreach (var w in words) if (Norm(w) is { Length: > 0 } n) _set.Add(n);
             try
             {
                 Directory.CreateDirectory(Log.Dir);
@@ -108,4 +109,7 @@ internal sealed class Exceptions
         }
         catch { }
     }
+
+    /// <summary>Малими літерами й без розділових знаків у кінці: «Шт,» і «шт» — один виняток.</summary>
+    private static string Norm(string w) => w.Trim().TrimEnd(".,!?;:\"»)…".ToCharArray()).ToLowerInvariant();
 }

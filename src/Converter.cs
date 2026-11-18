@@ -17,6 +17,8 @@ internal sealed class Converter
 
     /// <summary>Слово виправлено (для звуку та підсвічування іконки).</summary>
     public event Action? Corrected;
+    /// <summary>Слово додано у винятки (після скасування Backspace) — щоб людина знала, куди воно поділося.</summary>
+    public event Action<string>? ExceptionAdded;
 
     public Converter(Layouts layouts, KeyboardMonitor monitor, AutoDetector detector, Exceptions exceptions, Settings settings, AutoReplace replace)
     {
@@ -65,6 +67,7 @@ internal sealed class Converter
         {
             _exceptions.Add(w.AutoOriginal); // запам'ятовуємо: це слово більше не виправляти
             Log.Write("Скасовано автовиправлення, слово додано у винятки");
+            ExceptionAdded?.Invoke(w.AutoOriginal);
         }
         w.AutoConverted = w.PrevConverted = w.AutoLayout = false;
         w.AutoCase = CaseFix.None;
@@ -100,6 +103,14 @@ internal sealed class Converter
             if (!_detector.Ready) return "словники ще не завантажені";
             if (w.AutoConverted) // слово вже виправлено за першими буквами — лишається велика літера чи кома
             {
+                // Windows не встигла перемкнути мову, і кінець слова надруковано старою розкладкою («Hellщ»)
+                int odd = w.Keys.FindIndex(k => k.Shown != w.Keys[0].Shown);
+                if (odd > 0 && w.Keys.Skip(odd).All(k => (k.Mods & KeyMods.AltGr) == 0))
+                {
+                    FixTail(w, fg, odd);
+                    corrected = true;
+                    goto done;
+                }
                 string? now = TextOf(w.Keys, w.Keys[0].Shown);
                 if (w.AutoCase == CaseFix.None && now != null && WantsSentenceCap(w, now))
                 {
@@ -129,6 +140,14 @@ internal sealed class Converter
             {
                 corrected = TryComma(w); // «Привіт,як» чи «file.txt» — розкладку не чіпаємо
                 goto done;
+            }
+
+            // Стан Caps Lock розійшовся з Windows — регістр літер у слові невідомий, тож нічого не чіпаємо
+            bool realCaps = Native.CapsLockOn();
+            if (w.Keys.Any(k => ((k.Mods & KeyMods.Caps) != 0) != realCaps))
+            {
+                _monitor.SetCaps(realCaps);
+                return "стан Caps Lock уточнено — слово пропущено";
             }
 
             // Регістр: випадковий Caps Lock (пРИВІТ) або дві великі на початку (ПРивіт)
@@ -235,10 +254,17 @@ internal sealed class Converter
 
     // ---------- Caps Lock перемикає мову ----------
 
+    // Остання мова, яку ми попросили ввімкнути: Windows оновлює розкладку вікна із затримкою,
+    // і при швидкому повторному натисканні ми б «перемкнули» на ту саму мову
+    private static IntPtr _lastTarget, _lastFg;
+    private static DateTime _lastSwitch;
+
     public void ToggleLayout()
     {
         if (!_layouts.Ready) return;
         var hkl = Native.ForegroundLayout(out var fg);
+        if (fg == _lastFg && (DateTime.UtcNow - _lastSwitch).TotalMilliseconds < 1500 && _lastTarget != IntPtr.Zero)
+            hkl = _lastTarget;
         SwitchLayout(fg, _layouts.Other(hkl));
     }
 
@@ -257,6 +283,8 @@ internal sealed class Converter
                 return;
             var cur = w.Keys[0].Shown;
             if (w.Keys.Any(k => k.Shown != cur || k.Mods.HasFlag(KeyMods.AltGr))) return;
+            bool realCaps = Native.CapsLockOn();
+            if (w.Keys.Any(k => ((k.Mods & KeyMods.Caps) != 0) != realCaps)) { _monitor.SetCaps(realCaps); return; }
             bool curIsUa = _layouts.IsUa(cur);
             if (!curIsUa && Native.LangId(cur) != Native.LangId(_layouts.En)) return;
             var alt = _layouts.Other(cur);
@@ -540,8 +568,34 @@ internal sealed class Converter
         AutoCheck(version);
     }
 
+    /// <summary>Передруковує кінець слова (з позиції from) розкладкою його початку і перемикає мову ще раз.</summary>
+    private void FixTail(WordBuffer w, IntPtr fg, int from)
+    {
+        var target = w.Keys[0].Shown;
+        int erase = w.Trailing.Count;
+        var text = new System.Text.StringBuilder();
+        for (int i = from; i < w.Keys.Count; i++)
+        {
+            var k = w.Keys[i];
+            string shown = _layouts.CharFor(k.Vk, k.Scan, k.Mods, k.Shown) ?? "";
+            erase += shown.Length;
+            text.Append(_layouts.CharFor(k.Vk, k.Scan, k.Mods, target) ?? shown);
+            k.Shown = target;
+        }
+        text.Append(w.Trailing.ToArray());
+        var inputs = new List<Native.INPUT>();
+        for (int i = 0; i < erase; i++) AddKey(inputs, VK_BACK);
+        AddText(inputs, text.ToString());
+        Send(inputs);
+        SwitchLayout(fg, target);
+        w.ArmedVersion = w.Version;
+        Log.Write("Дописано кінець слова: мова перемкнулася із запізненням");
+    }
+
     private void TurnCapsOff()
     {
+        // Перевіряємо справжній стан: якщо Caps уже вимкнений, натискання його б УВІМКНУЛО
+        if (!Native.CapsLockOn()) { _monitor.SetCaps(false); return; }
         var inputs = new List<Native.INPUT>();
         AddKey(inputs, VK_CAPITAL);
         Send(inputs);
@@ -551,7 +605,7 @@ internal sealed class Converter
     /// <summary>Курсор у полі пароля — автоматично нічого не змінюємо (ручні клавіші працюють як завжди).</summary>
     private bool InPasswordField(IntPtr fg) => _settings.SkipPasswords && PasswordGuard.IsPasswordField(fg);
 
-    private bool IsExcludedApp(IntPtr fg, out string name)
+    internal bool IsExcludedApp(IntPtr fg, out string name)
     {
         name = "?";
         try
@@ -615,6 +669,56 @@ internal sealed class Converter
 
     // ---------- Виділений текст ----------
 
+    /// <summary>Повідомлення для людини (заголовок, текст) — показує іконка в треї.</summary>
+    public event Action<string, string>? Notify;
+
+    public void TransliterateSelection(IntPtr restoreTo = default) => TransformSelection(t =>
+        TextTools.HasCyrillic(t) ? TextTools.Transliterate(t) : null,
+        "Виділіть текст українською", "Наприклад, ім'я та прізвище: «Шевченко Олександр».", restoreTo);
+
+    public void AmountSelection(IntPtr restoreTo = default) => TransformSelection(TextTools.AmountInWords,
+        "Виділіть суму числом", "Наприклад: 1250,50 або 1 250.50 грн.", restoreTo);
+
+    /// <summary>Копіює виділене, перетворює і вставляє на те саме місце. Буфер обміну відновлюється.</summary>
+    private async void TransformSelection(Func<string, string?> transform, string failTitle, string failText, IntPtr restoreTo)
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            // З меню іконки: повертаємо фокус у вікно, де виділено текст (але не на панель завдань)
+            if (restoreTo != IntPtr.Zero && !Native.ClassName(restoreTo).StartsWith("Shell_", StringComparison.Ordinal))
+            {
+                Native.SetForegroundWindow(restoreTo);
+                await Task.Delay(150);
+            }
+            await WaitModifiersReleased();
+            var fg = Native.GetForegroundWindow();
+            if (IsExcludedApp(fg, out _)) return;
+            var backup = ClipboardBackup.Save();
+
+            uint seq = Native.GetClipboardSequenceNumber();
+            SendChord(VK_CONTROL, VK_C);
+            string? text = await WaitClipboardChange(seq, 700) ? TryGetText() : null;
+            string? result = string.IsNullOrWhiteSpace(text) ? null : transform(text!);
+            if (result == null || result == text)
+            {
+                backup.Restore();
+                Notify?.Invoke(failTitle, failText);
+                return;
+            }
+            seq = Native.GetClipboardSequenceNumber();
+            TrySetText(result);
+            await WaitClipboardChange(seq, 300);
+            SendChord(VK_CONTROL, VK_V);
+            await Task.Delay(250); // програма має встигнути прочитати буфер
+            backup.Restore();
+            _monitor.ResetWord();
+        }
+        catch { /* не заважаємо роботі користувача */ }
+        finally { _busy = false; }
+    }
+
     public async void ConvertSelection()
     {
         if (_busy || !_layouts.Ready) return;
@@ -653,10 +757,30 @@ internal sealed class Converter
 
     // ---------- Допоміжне ----------
 
+    // Сучасні програми Windows 11 (Параметри, пошук «Пуску», новий Блокнот, Магазин) ігнорують WM_INPUTLANGCHANGEREQUEST
+    private static readonly string[] ModernWindowClasses = { "ApplicationFrameWindow", "Windows.UI.Core.CoreWindow", "WinUIDesktopWin32WindowClass" };
+    private static readonly HashSet<string> _loggedClasses = new();
+
     public static void SwitchLayout(IntPtr fg, IntPtr hkl)
     {
         if (hkl == IntPtr.Zero) return;
-        Native.PostMessage(Native.FocusWindow(fg), Native.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+        _lastTarget = hkl; _lastFg = fg; _lastSwitch = DateTime.UtcNow;
+
+        string cls = Native.ClassName(fg);
+        if (_loggedClasses.Add(cls)) Log.Write($"Перемикання мови у вікні «{cls}»");
+
+        // Для двох розкладок у сучасних програмах — системне Win+Пробіл (працює скрізь)
+        if (ModernWindowClasses.Contains(cls) && Native.GetKeyboardLayoutList(0, null) == 2)
+        {
+            var inputs = new List<Native.INPUT>();
+            inputs.Add(Key(0x5B, false)); inputs.Add(Key(VK_SPACE, false)); inputs.Add(Key(VK_SPACE, true)); inputs.Add(Key(0x5B, true));
+            Native.SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<Native.INPUT>());
+            return;
+        }
+
+        var focus = Native.FocusWindow(fg);
+        Native.PostMessage(focus, Native.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+        if (focus != fg) Native.PostMessage(fg, Native.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl); // деякі програми слухають лише головне вікно
     }
 
     private static async Task WaitModifiersReleased()

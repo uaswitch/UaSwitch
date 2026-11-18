@@ -8,7 +8,7 @@ internal sealed class SettingsForm : Form
 {
     private readonly Settings _s;
     private readonly Exceptions _ex;
-    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _passwords, _sound, _flash, _updates, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn;
+    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _passwords, _sound, _flash, _updates, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _translit, _amount, _replaceOn;
     private readonly AutoReplace _replace;
     private readonly ListView _replaceList = new();
     private readonly ListBox _apps = new(), _words = new();
@@ -69,7 +69,12 @@ internal sealed class SettingsForm : Form
         _dShift = Check(keys, "Двічі Shift — виправити останнє слово", _s.DoubleShift);
         _dCtrl = Check(keys, "Двічі Ctrl — виправити виділений текст", _s.DoubleCtrl);
         _capsSwitch = Check(keys, "Caps Lock перемикає мову  (Shift+Caps — великі літери)", _s.CapsSwitch);
-        AddLabel(keys, "\nПовторне натискання повертає слово як було.\n" +
+        _translit = Check(keys, "Ctrl+Alt+T — транслітерація  (Шевченко → Shevchenko)", _s.HotkeyTranslit);
+        _amount = Check(keys, "Ctrl+Alt+S — сума прописом  (1250,50 → Одна тисяча…)", _s.HotkeyAmount);
+        AddLabel(keys, "\nТранслітерація — за постановою КМУ №55 (як у паспорті).\n" +
+                       "Сума прописом — у гривнях і копійках, для актів і рахунків.\n" +
+                       "Обидві працюють і з меню іконки.\n\n" +
+                       "Повторне натискання повертає слово як було.\n" +
                        "Подвійне натискання — два короткі натискання поспіль,\nбез інших клавіш між ними.");
 
         // ---- Програми ----
@@ -116,7 +121,7 @@ internal sealed class SettingsForm : Form
 
         // Автозбереження: кожна галочка зберігається й застосовується одразу
         foreach (var c in new[] { _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _passwords, _sound, _flash, _updates,
-                                  _pause, _dShift, _dCtrl, _capsSwitch, _replaceOn })
+                                  _pause, _dShift, _dCtrl, _capsSwitch, _translit, _amount, _replaceOn })
             c.CheckedChanged += (_, _) => Save();
         _autostart.CheckedChanged += (_, _) =>
         {
@@ -158,6 +163,8 @@ internal sealed class SettingsForm : Form
         _s.DoubleShift = _dShift.Checked;
         _s.DoubleCtrl = _dCtrl.Checked;
         _s.CapsSwitch = _capsSwitch.Checked;
+        _s.HotkeyTranslit = _translit.Checked;
+        _s.HotkeyAmount = _amount.Checked;
         _s.AutoReplace = _replaceOn.Checked;
         _s.ExcludedApps = string.Join(",", _apps.Items.Cast<string>());
         _s.Save();
