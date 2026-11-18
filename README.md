@@ -139,6 +139,10 @@ Klavko — сильний український проєкт для macOS з б
 
 Дані для апострофа (`src/apo.txt.gz`) отримано з українського словника hunspell проєкту spell-uk ([LibreOffice dictionaries](https://github.com/LibreOffice/dictionaries/tree/master/uk_UA)) і поширюються за ліцензією MPL 1.1. Скрипт: `src/model/build_apostrophe.py`.
 
+## Історія змін
+
+Що змінилося в кожній версії: [CHANGELOG.md](CHANGELOG.md).
+
 ## Розробник
 
 Ruslan Pichkar. Ідеї та відгуки — у [Issues](../../issues).

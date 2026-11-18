@@ -17,6 +17,8 @@ internal sealed class Converter
 
     /// <summary>Слово виправлено (для звуку та підсвічування іконки).</summary>
     public event Action? Corrected;
+    /// <summary>Слово додано у винятки (після скасування Backspace) — щоб людина знала, куди воно поділося.</summary>
+    public event Action<string>? ExceptionAdded;
 
     public Converter(Layouts layouts, KeyboardMonitor monitor, AutoDetector detector, Exceptions exceptions, Settings settings, AutoReplace replace)
     {
@@ -65,6 +67,7 @@ internal sealed class Converter
         {
             _exceptions.Add(w.AutoOriginal); // запам'ятовуємо: це слово більше не виправляти
             Log.Write("Скасовано автовиправлення, слово додано у винятки");
+            ExceptionAdded?.Invoke(w.AutoOriginal);
         }
         w.AutoConverted = w.PrevConverted = w.AutoLayout = false;
         w.AutoCase = CaseFix.None;
@@ -100,6 +103,14 @@ internal sealed class Converter
             if (!_detector.Ready) return "словники ще не завантажені";
             if (w.AutoConverted) // слово вже виправлено за першими буквами — лишається велика літера чи кома
             {
+                // Windows не встигла перемкнути мову, і кінець слова надруковано старою розкладкою («Hellщ»)
+                int odd = w.Keys.FindIndex(k => k.Shown != w.Keys[0].Shown);
+                if (odd > 0 && w.Keys.Skip(odd).All(k => (k.Mods & KeyMods.AltGr) == 0))
+                {
+                    FixTail(w, fg, odd);
+                    corrected = true;
+                    goto done;
+                }
                 string? now = TextOf(w.Keys, w.Keys[0].Shown);
                 if (w.AutoCase == CaseFix.None && now != null && WantsSentenceCap(w, now))
                 {
@@ -555,6 +566,30 @@ internal sealed class Converter
             version = w.Version;
         }
         AutoCheck(version);
+    }
+
+    /// <summary>Передруковує кінець слова (з позиції from) розкладкою його початку і перемикає мову ще раз.</summary>
+    private void FixTail(WordBuffer w, IntPtr fg, int from)
+    {
+        var target = w.Keys[0].Shown;
+        int erase = w.Trailing.Count;
+        var text = new System.Text.StringBuilder();
+        for (int i = from; i < w.Keys.Count; i++)
+        {
+            var k = w.Keys[i];
+            string shown = _layouts.CharFor(k.Vk, k.Scan, k.Mods, k.Shown) ?? "";
+            erase += shown.Length;
+            text.Append(_layouts.CharFor(k.Vk, k.Scan, k.Mods, target) ?? shown);
+            k.Shown = target;
+        }
+        text.Append(w.Trailing.ToArray());
+        var inputs = new List<Native.INPUT>();
+        for (int i = 0; i < erase; i++) AddKey(inputs, VK_BACK);
+        AddText(inputs, text.ToString());
+        Send(inputs);
+        SwitchLayout(fg, target);
+        w.ArmedVersion = w.Version;
+        Log.Write("Дописано кінець слова: мова перемкнулася із запізненням");
     }
 
     private void TurnCapsOff()

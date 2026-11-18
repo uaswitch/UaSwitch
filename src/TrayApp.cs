@@ -63,6 +63,8 @@ internal sealed class TrayApp : ApplicationContext
             if (_settings.SkipPasswords) PasswordGuard.Warmup(Native.GetForegroundWindow());
         };
         _monitor.IsExcludedWindow = hwnd => _converter.IsExcludedApp(hwnd, out _);
+        _converter.ExceptionAdded += word => { _pendingRelease = null; _tray.ShowBalloonTip(6000, $"«{word}» більше не виправлятиметься",
+            "Слово додано у винятки, бо виправлення скасували Backspace. Прибрати: Налаштування → Слова-винятки.", ToolTipIcon.Info); };
         _monitor.UndoRequested += _converter.UndoAuto;
         _converter.Corrected += OnCorrected;
 
