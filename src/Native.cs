@@ -70,6 +70,20 @@ internal static class Native
     [DllImport("user32.dll")] public static extern bool GetGUIThreadInfo(uint threadId, ref GUITHREADINFO info);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] public static extern short GetKeyState(int vk);
+    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    /// <summary>
+    /// Справжній стан Caps Lock — такий, яким його бачить активне вікно.
+    /// Власний підрахунок натискань може розійтися з Windows (автоповтор, Shift вимикає Caps, інші програми).
+    /// </summary>
+    public static bool CapsLockOn()
+    {
+        uint me = GetCurrentThreadId();
+        uint fg = GetWindowThreadProcessId(GetForegroundWindow(), out _);
+        bool attached = fg != 0 && fg != me && AttachThreadInput(me, fg, true);
+        try { return (GetKeyState(0x14) & 1) != 0; }
+        finally { if (attached) AttachThreadInput(me, fg, false); }
+    }
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vk);
     [DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();
     [DllImport("user32.dll")] public static extern uint MapVirtualKeyEx(uint code, uint mapType, IntPtr hkl);

@@ -131,6 +131,14 @@ internal sealed class Converter
                 goto done;
             }
 
+            // Стан Caps Lock розійшовся з Windows — регістр літер у слові невідомий, тож нічого не чіпаємо
+            bool realCaps = Native.CapsLockOn();
+            if (w.Keys.Any(k => ((k.Mods & KeyMods.Caps) != 0) != realCaps))
+            {
+                _monitor.SetCaps(realCaps);
+                return "стан Caps Lock уточнено — слово пропущено";
+            }
+
             // Регістр: випадковий Caps Lock (пРИВІТ) або дві великі на початку (ПРивіт)
             var fix = CaseFix.None;
             if (_settings.FixCaps && _monitor.CapsOn && (IsCapsPattern(curText) || IsCapsPattern(altText)))
@@ -257,6 +265,8 @@ internal sealed class Converter
                 return;
             var cur = w.Keys[0].Shown;
             if (w.Keys.Any(k => k.Shown != cur || k.Mods.HasFlag(KeyMods.AltGr))) return;
+            bool realCaps = Native.CapsLockOn();
+            if (w.Keys.Any(k => ((k.Mods & KeyMods.Caps) != 0) != realCaps)) { _monitor.SetCaps(realCaps); return; }
             bool curIsUa = _layouts.IsUa(cur);
             if (!curIsUa && Native.LangId(cur) != Native.LangId(_layouts.En)) return;
             var alt = _layouts.Other(cur);
@@ -542,6 +552,8 @@ internal sealed class Converter
 
     private void TurnCapsOff()
     {
+        // Перевіряємо справжній стан: якщо Caps уже вимкнений, натискання його б УВІМКНУЛО
+        if (!Native.CapsLockOn()) { _monitor.SetCaps(false); return; }
         var inputs = new List<Native.INPUT>();
         AddKey(inputs, VK_CAPITAL);
         Send(inputs);
@@ -551,7 +563,7 @@ internal sealed class Converter
     /// <summary>Курсор у полі пароля — автоматично нічого не змінюємо (ручні клавіші працюють як завжди).</summary>
     private bool InPasswordField(IntPtr fg) => _settings.SkipPasswords && PasswordGuard.IsPasswordField(fg);
 
-    private bool IsExcludedApp(IntPtr fg, out string name)
+    internal bool IsExcludedApp(IntPtr fg, out string name)
     {
         name = "?";
         try

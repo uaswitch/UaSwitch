@@ -56,7 +56,12 @@ internal sealed class TrayApp : ApplicationContext
         _monitor.SelectionRequested += _converter.ConvertSelection;
         _monitor.AutoCheckRequested += _converter.AutoCheck;
         _monitor.EarlyCheckRequested += _converter.EarlyCheck;
-        _monitor.WordStarted += () => { if (_settings.SkipPasswords) PasswordGuard.Warmup(Native.GetForegroundWindow()); };
+        _monitor.WordStarted += () =>
+        {
+            _monitor.SetCaps(Native.CapsLockOn()); // звіряємо Caps Lock з Windows на початку кожного слова
+            if (_settings.SkipPasswords) PasswordGuard.Warmup(Native.GetForegroundWindow());
+        };
+        _monitor.IsExcludedWindow = hwnd => _converter.IsExcludedApp(hwnd, out _);
         _monitor.UndoRequested += _converter.UndoAuto;
         _converter.Corrected += OnCorrected;
 

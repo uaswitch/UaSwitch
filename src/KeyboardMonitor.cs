@@ -92,7 +92,26 @@ internal sealed class KeyboardMonitor : IDisposable
     private IntPtr _kbHook, _mouseHook;
     private Native.HookProc? _kbProc, _mouseProc;
 
-    private bool _shift, _ctrl, _alt, _win, _caps, _capsSwallowed;
+    private bool _shift, _ctrl, _alt, _win, _caps, _capsSwallowed, _capsHeld;
+
+    /// <summary>Чи програма вікна в списку «не виправляти» (рахується в потоці інтерфейсу).</summary>
+    public Func<IntPtr, bool>? IsExcludedWindow;
+    private IntPtr _exclHwnd;
+    private volatile bool _excluded;
+
+    /// <summary>
+    /// У програмах зі списку виключень (ігри тощо) UaSwitch повністю «прозорий»: жодних гарячих клавіш,
+    /// Caps Lock не перемикає мову — клавіші йдуть у програму без затримок.
+    /// </summary>
+    private void CheckForeground()
+    {
+        var fg = Native.GetForegroundWindow();
+        if (fg == _exclHwnd) return;
+        _exclHwnd = fg;
+        _excluded = false;
+        var f = IsExcludedWindow;
+        if (f != null) _ui.Post(_ => { if (_exclHwnd == fg) _excluded = f(fg); }, null);
+    }
     private enum Mod { None, Shift, Ctrl, Alt, Win }
     private Mod _downMod = Mod.None;      // модифікатор, натиснутий першим (кандидат на «тап»)
     private bool _otherSinceDown;
@@ -210,18 +229,44 @@ internal sealed class KeyboardMonitor : IDisposable
             if ((k.flags & Native.LLKHF_INJECTED) != 0 || k.dwExtraInfo == Native.OwnInputMarker)
                 return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
 
+            CheckForeground();
+
             var mod = ModOf(k.vkCode);
             if (mod != Mod.None)
             {
                 bool wasDown = IsModDown(mod);
                 SetModDown(mod, down);
-                if (down && !wasDown) OnModifierDown(mod);
+                if (_excluded) { _lastTap = Mod.None; } // у виключених програмах подвійний Shift/Ctrl не діє
+                else if (down && !wasDown) OnModifierDown(mod);
                 else if (up) OnModifierUp(mod);
                 return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
             }
 
-            // Відпускання Caps Lock, натискання якого ми перехопили для перемикання мови
-            if (up && k.vkCode == VK_CAPITAL && _capsSwallowed) { _capsSwallowed = false; return (IntPtr)1; }
+            if (k.vkCode == VK_CAPITAL)
+            {
+                if (up)
+                {
+                    _capsHeld = false;
+                    // Відпускання Caps Lock, натискання якого ми перехопили для перемикання мови
+                    if (_capsSwallowed) { _capsSwallowed = false; return (IntPtr)1; }
+                    return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
+                }
+                if (down)
+                {
+                    bool repeat = _capsHeld; // автоповтор: Windows перемикає Caps лише на першому натисканні
+                    _capsHeld = true;
+                    _otherSinceDown = true;
+                    _lastTap = Mod.None;
+                    // Caps Lock перемикає мову; Shift+Caps Lock — звичайні великі літери
+                    if (CapsSwitch && Enabled && !_excluded && !_shift && !_ctrl && !_alt && !_win)
+                    {
+                        if (!_capsSwallowed) { _capsSwallowed = true; Post(LayoutToggleRequested); }
+                        return (IntPtr)1;
+                    }
+                    if (!repeat) _caps = !_caps;
+                }
+                return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
+            }
 
             if (!down) return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
 
@@ -229,15 +274,9 @@ internal sealed class KeyboardMonitor : IDisposable
             _otherSinceDown = true;
             _lastTap = Mod.None;
 
-            if (k.vkCode == VK_CAPITAL)
+            if (_excluded)
             {
-                // Caps Lock перемикає мову; Shift+Caps Lock — звичайні великі літери
-                if (CapsSwitch && Enabled && !_shift && !_ctrl && !_alt && !_win)
-                {
-                    if (!_capsSwallowed) { _capsSwallowed = true; Post(LayoutToggleRequested); } // автоповтор ігноруємо
-                    return (IntPtr)1;
-                }
-                _caps = !_caps;
+                if (Word.Keys.Count > 0) ResetWord();
                 return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
             }
 
