@@ -243,10 +243,17 @@ internal sealed class Converter
 
     // ---------- Caps Lock перемикає мову ----------
 
+    // Остання мова, яку ми попросили ввімкнути: Windows оновлює розкладку вікна із затримкою,
+    // і при швидкому повторному натисканні ми б «перемкнули» на ту саму мову
+    private static IntPtr _lastTarget, _lastFg;
+    private static DateTime _lastSwitch;
+
     public void ToggleLayout()
     {
         if (!_layouts.Ready) return;
         var hkl = Native.ForegroundLayout(out var fg);
+        if (fg == _lastFg && (DateTime.UtcNow - _lastSwitch).TotalMilliseconds < 1500 && _lastTarget != IntPtr.Zero)
+            hkl = _lastTarget;
         SwitchLayout(fg, _layouts.Other(hkl));
     }
 
@@ -665,10 +672,30 @@ internal sealed class Converter
 
     // ---------- Допоміжне ----------
 
+    // Сучасні програми Windows 11 (Параметри, пошук «Пуску», новий Блокнот, Магазин) ігнорують WM_INPUTLANGCHANGEREQUEST
+    private static readonly string[] ModernWindowClasses = { "ApplicationFrameWindow", "Windows.UI.Core.CoreWindow", "WinUIDesktopWin32WindowClass" };
+    private static readonly HashSet<string> _loggedClasses = new();
+
     public static void SwitchLayout(IntPtr fg, IntPtr hkl)
     {
         if (hkl == IntPtr.Zero) return;
-        Native.PostMessage(Native.FocusWindow(fg), Native.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+        _lastTarget = hkl; _lastFg = fg; _lastSwitch = DateTime.UtcNow;
+
+        string cls = Native.ClassName(fg);
+        if (_loggedClasses.Add(cls)) Log.Write($"Перемикання мови у вікні «{cls}»");
+
+        // Для двох розкладок у сучасних програмах — системне Win+Пробіл (працює скрізь)
+        if (ModernWindowClasses.Contains(cls) && Native.GetKeyboardLayoutList(0, null) == 2)
+        {
+            var inputs = new List<Native.INPUT>();
+            inputs.Add(Key(0x5B, false)); inputs.Add(Key(VK_SPACE, false)); inputs.Add(Key(VK_SPACE, true)); inputs.Add(Key(0x5B, true));
+            Native.SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<Native.INPUT>());
+            return;
+        }
+
+        var focus = Native.FocusWindow(fg);
+        Native.PostMessage(focus, Native.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+        if (focus != fg) Native.PostMessage(fg, Native.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl); // деякі програми слухають лише головне вікно
     }
 
     private static async Task WaitModifiersReleased()

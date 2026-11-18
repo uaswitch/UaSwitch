@@ -41,6 +41,7 @@ internal sealed class TrayApp : ApplicationContext
         {
             try { _detector.Load(); }
             catch (Exception ex) { Log.Write($"ПОМИЛКА завантаження словників: {ex}"); }
+            Native.TrimMemory(); // після завантаження лишається багато тимчасових даних
         });
         _replace.Load();
         Settings.MigrateAutostart();
@@ -207,6 +208,7 @@ internal sealed class TrayApp : ApplicationContext
         _settingsForm.FormClosed += (_, _) =>
         {
             _settingsForm = null;
+            Native.TrimMemory(); // вікно налаштувань більше не потрібне
         };
         _settingsForm.Show();
         _settingsForm.Activate();
