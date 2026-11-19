@@ -251,7 +251,8 @@ footer a{color:inherit}
     <p class="sub">Завжди видно, яка розкладка зараз увімкнена.</p>
     <figure class="shot-tray">
       <img src="screen-tray.png" alt="Панель задач Windows 11: іконка UaSwitch «UA» поруч з індикатором мови «УКР»" width="457" height="142" loading="lazy">
-      <figcaption>Так виглядає на панелі задач Windows 11 — поруч зі стандартним індикатором мови.</figcaption>
+      <img src="screen-tray-flags.png" alt="Іконка UaSwitch у вигляді прапора України поруч з індикатором «УКР»" width="514" height="102" loading="lazy" style="margin-top:12px">
+      <figcaption>Так виглядає на панелі задач Windows 11 — поруч зі стандартним індикатором мови. Знизу — вигляд «Прапори».</figcaption>
     </figure>
     <div class="states">
       <div class="state"><img src="tray-ua.png" alt=""><h3>Українська</h3><p>Синьо-жовта іконка</p></div>
@@ -415,6 +416,27 @@ document.querySelectorAll('.seg button').forEach(function (b) {
   type('\nпРИВІТ', 140); type(' '); wait(200);
   fix(7, 'Привіт ', null); wait(300);
   type('від колеги '); wait(2600);
+
+  // Сцена 4: апостроф і ґ
+  reset();
+  q.push(function (next) { setTray('UA'); next(); });
+  cap$(4, 'Апостроф і ґ ставляться самі — за словником української.');
+  wait(500); type('Купив мясо', 120); type(' '); wait(150);
+  fix(5, "м'ясо ", null); wait(300);
+  type('і агрус', 120); type(' '); wait(150);
+  fix(6, 'аґрус ', null); wait(1300);
+
+  // Сцена 5: автозаміна зі змінною {дата}
+  var d = new Date(), today = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + d.getFullYear();
+  var clk = document.querySelector('.taskbar .clock'); if (clk) clk.innerHTML = '21:46<br>' + today;
+  cap$(5, 'Автозаміна: «.дата» стає сьогоднішньою датою.');
+  type('\n.дата', 150); type(' '); wait(200);
+  fix(6, today + ' ', null); wait(1300);
+
+  // Сцена 6: транслітерація виділеного
+  cap$(6, 'Виділили ім\'я, Ctrl+Alt+T — латиницею, як у паспорті.');
+  type('\nШевченко Олександр', 80); wait(700);
+  fix(18, 'Shevchenko Oleksandr', null); wait(2600);
 
   var i = 0;
   (function run() { var f = q[i++ % q.length]; f(run); })();
