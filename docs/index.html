@@ -5,7 +5,7 @@
 <meta name="author" content="Ruslan Pichkar">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UaSwitch — перемикач розкладок УКР/АНГЛ</title>
-<meta name="description" content="Мінімалістичний перемикач розкладок УКР/АНГЛ для Windows: один файл менше 1 МБ, без встановлення й інтернету. Виправляє розкладку, коми, регістр і пробіли.">
+<meta name="description" content="Мінімалістичний перемикач розкладок УКР/АНГЛ для Windows: один файл менше 1 МБ, без встановлення й інтернету. Виправляє розкладку, апостроф, ґ, коми й регістр; транслітерація і сума прописом.">
 <meta property="og:title" content="UaSwitch — перемикач розкладок УКР/АНГЛ">
 <meta property="og:description" content="Набрали ghbdsn замість привіт? UaSwitch виправить сам. Безкоштовно, відкритий код.">
 <meta property="og:image" content="https://uaswitch.github.io/UaSwitch/social-preview.png">
@@ -194,11 +194,15 @@ footer a{color:inherit}
       <div class="card"><div class="ico">⚡</div><h3>Виправляє на ходу</h3><p>Часто вже на 4-й літері: <code>ghbd</code> → <code>прив</code>, далі ви набираєте в правильній розкладці.</p></div>
       <div class="card"><div class="ico">⌨️</div><h3>Вручну, коли треба</h3><p><kbd>Pause</kbd> або двічі <kbd>Shift</kbd> — останнє слово. Двічі <kbd>Ctrl</kbd> — виділений текст.</p></div>
       <div class="card"><div class="ico">↩️</div><h3>Легко скасувати</h3><p><kbd>Backspace</kbd> одразу після виправлення повертає як було й запам'ятовує слово.</p></div>
-      <div class="card"><div class="ico">ʼ</div><h3>Апостроф</h3><p><code>мясо</code> → <code>м'ясо</code>, <code>обєкт</code> → <code>об'єкт</code>. Повний словник української: «бюро» й «буряк» не чіпає. Працює й у Word.</p></div>
+      <div class="card"><div class="ico">ʼ</div><h3>Апостроф і ґ</h3><p><code>мясо</code> → <code>м'ясо</code>, <code>гудзик</code> → <code>ґудзик</code>, <code>агрус</code> → <code>аґрус</code>. Повний словник української: «бюро» й «Гордон» не чіпає. Працює й у Word.</p></div>
       <div class="card"><div class="ico">,</div><h3>Коми і регістр</h3><p><code>знаю де він</code> → <code>знаю, де він</code>, <code>так. добре</code> → <code>так. Добре</code>, <code>пРИВІТ</code> → <code>Привіт</code>.</p></div>
-      <div class="card"><div class="ico">✍️</div><h3>Автозаміна</h3><p>Ваші скорочення стають текстом: <code>.дяк</code> → «Дякую за допомогу!». Навіть у неправильній розкладці.</p></div>
+      <div class="card"><div class="ico">✍️</div><h3>Автозаміна</h3><p>Ваші скорочення стають текстом: <code>.дяк</code> → «Дякую за допомогу!». Можна вставляти <code>{дата}</code>, <code>{час}</code>, <code>{буфер}</code>.</p></div>
       <div class="card"><div class="ico">⇪</div><h3>Caps Lock — мова</h3><p>За бажанням Caps Lock перемикає УКР ↔ АНГЛ одним натисканням, а великі літери — <kbd>Shift</kbd>+<kbd>Caps</kbd>.</p></div>
-      <div class="card"><div class="ico">🛡️</div><h3>Не заважає в роботі</h3><p>Не чіпає коди, номери, абревіатури й email. Можна вимкнути в окремих програмах.</p></div>
+      <div class="card"><div class="ico">🛡️</div><h3>Не заважає в роботі</h3><p>Не чіпає паролі, коди, номери, абревіатури й email. Можна вимкнути в окремих програмах, наприклад в іграх.</p></div>
+      <div class="card"><div class="ico">🔤</div><h3>Транслітерація</h3><p>Виділіть «Шевченко Олександр» → <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> → «Shevchenko Oleksandr», як у паспорті (КМУ №55).</p></div>
+      <div class="card"><div class="ico">₴</div><h3>Сума прописом</h3><p>Виділіть «1250,50» → <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> → «Одна тисяча двісті п'ятдесят гривень 50 копійок».</p></div>
+      <div class="card"><div class="ico">🌐</div><h3>Є ще російська розкладка?</h3><p>Англійське слово, набране нею, теж виправиться: <code>руддщ</code> → <code>hello</code>. Звичайний текст цією мовою не чіпається.</p></div>
+      <div class="card"><div class="ico">🇺🇦</div><h3>Іконка на смак</h3><p>Текст UA/EN, прапори, однотонна чи кольорова крапка. На паузі сіріє, у виключеннях — перекреслена.</p></div>
     </div>
   </section>
 
@@ -219,8 +223,9 @@ footer a{color:inherit}
         <h3>Функціональний</h3>
         <ul>
           <li>Виправляє розкладку, часто вже на 4-й літері, з урахуванням мови речення</li>
-          <li>Ставить апострофи й коми, велику літеру на початку речення, лікує Caps Lock</li>
-          <li>Не чіпає коди, номери, абревіатури й імена файлів</li>
+          <li>Ставить апострофи, ґ і коми, велику літеру на початку речення, лікує Caps Lock</li>
+          <li>Транслітерація за КМУ №55 і сума прописом для документів</li>
+          <li>Не чіпає паролі, коди, номери, абревіатури й імена файлів</li>
           <li>Будь-яке виправлення скасовується одним <kbd>Backspace</kbd></li>
         </ul>
       </div>
@@ -246,7 +251,8 @@ footer a{color:inherit}
     <p class="sub">Завжди видно, яка розкладка зараз увімкнена.</p>
     <figure class="shot-tray">
       <img src="screen-tray.png" alt="Панель задач Windows 11: іконка UaSwitch «UA» поруч з індикатором мови «УКР»" width="457" height="142" loading="lazy">
-      <figcaption>Так виглядає на панелі задач Windows 11 — поруч зі стандартним індикатором мови.</figcaption>
+      <img src="screen-tray-flags.png" alt="Іконка UaSwitch у вигляді прапора України поруч з індикатором «УКР»" width="514" height="102" loading="lazy" style="margin-top:12px">
+      <figcaption>Так виглядає на панелі задач Windows 11 — поруч зі стандартним індикатором мови. Знизу — вигляд «Прапори».</figcaption>
     </figure>
     <div class="states">
       <div class="state"><img src="tray-ua.png" alt=""><h3>Українська</h3><p>Синьо-жовта іконка</p></div>
@@ -254,6 +260,7 @@ footer a{color:inherit}
       <div class="state"><img src="tray-ua-flash.png" alt=""><h3>Щойно виправлено</h3><p>На мить стає зеленою, лунає тихий клік</p></div>
       <div class="state"><img src="tray-off.png" alt=""><h3>Вимкнено</h3><p>Сіра іконка</p></div>
     </div>
+    <p class="note">Вигляд можна змінити (Налаштування → Додатково): текст UA/EN, прапори, однотонна під колір панелі або кольорова крапка. У програмі-виключенні іконка перекреслена червоним.</p>
   </section>
 
   <section>
@@ -269,6 +276,7 @@ footer a{color:inherit}
           <button role="tab" aria-selected="false" data-img="screen-hotkeys.png" data-alt="Вкладка «Гарячі клавіші»">Гарячі клавіші</button>
           <button role="tab" aria-selected="false" data-img="screen-apps.png" data-alt="Вкладка «Програми»">Програми</button>
           <button role="tab" aria-selected="false" data-img="screen-replace.png" data-alt="Вкладка «Автозаміна»">Автозаміна</button>
+          <button role="tab" aria-selected="false" data-img="screen-extra.png" data-alt="Вкладка «Додатково»">Додатково</button>
           <button role="tab" aria-selected="false" data-img="screen-menu.png" data-alt="Меню іконки">Меню іконки</button>
         </div>
         <img id="shot" class="shot" src="screen-general.png" alt="Вкладка «Загальне»" width="510" height="626" loading="lazy">
@@ -408,6 +416,27 @@ document.querySelectorAll('.seg button').forEach(function (b) {
   type('\nпРИВІТ', 140); type(' '); wait(200);
   fix(7, 'Привіт ', null); wait(300);
   type('від колеги '); wait(2600);
+
+  // Сцена 4: апостроф і ґ
+  reset();
+  q.push(function (next) { setTray('UA'); next(); });
+  cap$(4, 'Апостроф і ґ ставляться самі — за словником української.');
+  wait(500); type('Купив мясо', 120); type(' '); wait(150);
+  fix(5, "м'ясо ", null); wait(300);
+  type('і агрус', 120); type(' '); wait(150);
+  fix(6, 'аґрус ', null); wait(1300);
+
+  // Сцена 5: автозаміна зі змінною {дата}
+  var d = new Date(), today = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + d.getFullYear();
+  var clk = document.querySelector('.taskbar .clock'); if (clk) clk.innerHTML = '21:46<br>' + today;
+  cap$(5, 'Автозаміна: «.дата» стає сьогоднішньою датою.');
+  type('\n.дата', 150); type(' '); wait(200);
+  fix(6, today + ' ', null); wait(1300);
+
+  // Сцена 6: транслітерація виділеного
+  cap$(6, 'Виділили ім\'я, Ctrl+Alt+T — латиницею, як у паспорті.');
+  type('\nШевченко Олександр', 80); wait(700);
+  fix(18, 'Shevchenko Oleksandr', null); wait(2600);
 
   var i = 0;
   (function run() { var f = q[i++ % q.length]; f(run); })();
