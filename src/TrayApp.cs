@@ -49,7 +49,8 @@ internal sealed class TrayApp : ApplicationContext
         Log.Write($"Запуск з «{Application.ExecutablePath}»");
         _converter = new Converter(_layouts, _monitor, _detector, _exceptions, _settings, _replace);
         _monitor.IsAbbrev = _replace.Contains;
-        _monitor.NeedsApostrophe = w => _settings.FixApostrophe && _detector.FixApostrophe(w.TrimEnd(".,!?;:\")»".ToCharArray()), '\'') != null;
+        _monitor.NeedsApostrophe = w => (_settings.FixApostrophe || _settings.FixG) &&
+            _detector.FixSpelling(w.TrimEnd(".,!?;:\")»".ToCharArray()), '\'', _settings.FixApostrophe, _settings.FixG) != null;
         _monitor.ApostropheOnSpaceRequested += _converter.ApostropheOnSpace;
         _monitor.LayoutToggleRequested += _converter.ToggleLayout;
         _monitor.ReplaceOnEnterRequested += _converter.ReplaceOnEnter;
@@ -260,43 +261,141 @@ internal sealed class TrayApp : ApplicationContext
     private void UpdateIcon()
     {
         if (!_layouts.Ready) _layouts.Refresh();
-        var hkl = Native.ForegroundLayout(out _);
-        string label = _layouts.IsUa(hkl) ? "UA" : (Native.LangId(hkl) & 0x3FF) == 0x09 ? "EN" : "??";
+        var hkl = Native.ForegroundLayout(out var fg);
+        int lang = Native.LangId(hkl) & 0x3FF;
+        string label = _layouts.IsUa(hkl) ? "UA" : lang == 0x09 ? "EN" : LangCode(hkl);
         bool flash = _flashUntil != 0 && Environment.TickCount - _flashUntil < 0;
         if (!flash) _flashUntil = 0;
-        string state = label + (_settings.Enabled ? "+" : "-") + (flash ? "*" : "");
+        bool excluded = fg != IntPtr.Zero && _converter.IsExcludedApp(fg, out _);
+        string state = label + (_settings.Enabled ? "+" : "-") + (flash ? "*" : "") + (excluded ? "x" : "") + _settings.IconStyle + (_lightTaskbar ? "L" : "D");
         if (state == _iconState) return;
         _iconState = state;
 
         var old = _icon;
-        _icon = DrawIcon(label, _settings.Enabled, flash);
+        _icon = DrawIcon(label, _settings.Enabled, flash, excluded, _settings.IconStyle, _lightTaskbar);
         _tray.Icon = _icon;
-        _tray.Text = _settings.Enabled ? $"UaSwitch — {label}" : "UaSwitch — вимкнено";
+        _tray.Text = !_settings.Enabled ? "UaSwitch — вимкнено" : excluded ? $"UaSwitch — {label}, у цій програмі не виправляє" : $"UaSwitch — {label}";
         if (old != null) { Native.DestroyIcon(old.Handle); old.Dispose(); }
     }
 
-    private static Icon DrawIcon(string label, bool enabled, bool flash)
+    /// <summary>Світла панель завдань (для однотонної іконки) — перевіряємо раз на хвилину.</summary>
+    private bool _lightTaskbar => (Environment.TickCount - _themeAt > 60000 || _themeAt == 0) ? (_light = ReadLight()) : _light;
+    private bool _light;
+    private int _themeAt;
+    private bool ReadLight()
+    {
+        _themeAt = Environment.TickCount | 1;
+        try
+        {
+            using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            return k?.GetValue("SystemUsesLightTheme") is int v && v == 1;
+        }
+        catch { return false; }
+    }
+
+    private static string LangCode(IntPtr hkl)
+    {
+        try { return new System.Globalization.CultureInfo(Native.LangId(hkl)).TwoLetterISOLanguageName.ToUpperInvariant(); }
+        catch { return "??"; }
+    }
+
+    private static Icon DrawIcon(string label, bool enabled, bool flash, bool excluded, string style, bool lightTaskbar)
     {
         const int s = 32;
+        bool muted = !enabled || excluded;
         using var bmp = new Bitmap(s, s);
         using (var g = Graphics.FromImage(bmp))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-            Color bg = flash ? Color.FromArgb(22, 163, 74)
-                     : !enabled ? Color.FromArgb(150, 150, 150)
-                     : label == "UA" ? Color.FromArgb(0, 87, 183)
-                     : Color.FromArgb(55, 60, 70);
-            Color fg = !flash && enabled && label == "UA" ? Color.FromArgb(255, 215, 0) : Color.White;
-            using (var path = RoundRect(new Rectangle(0, 2, s - 1, s - 5), 7))
-            using (var b = new SolidBrush(bg))
-                g.FillPath(b, path);
-            using var font = new Font("Segoe UI", 14f, FontStyle.Bold, GraphicsUnit.Pixel);
-            using var tb = new SolidBrush(fg);
             var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            g.DrawString(label, font, tb, new RectangleF(0, 1, s, s), fmt);
+            var box = new Rectangle(0, 2, s - 1, s - 5);
+
+            if (style == "flags" && (label == "UA" || label == "EN"))
+            {
+                using var path = RoundRect(box, 6);
+                g.SetClip(path);
+                if (label == "UA")
+                {
+                    using var blue = new SolidBrush(Color.FromArgb(0, 87, 183));
+                    using var yellow = new SolidBrush(Color.FromArgb(255, 215, 0));
+                    g.FillRectangle(blue, box.X, box.Y, box.Width + 1, box.Height / 2 + 1);
+                    g.FillRectangle(yellow, box.X, box.Y + box.Height / 2, box.Width + 1, box.Height / 2 + 2);
+                }
+                else // спрощений прапор Великої Британії: на 16–32 px деталі зливаються
+                {
+                    using var navy = new SolidBrush(Color.FromArgb(1, 33, 105));
+                    g.FillRectangle(navy, box);
+                    using var white = new Pen(Color.White, 6f);
+                    using var red = new Pen(Color.FromArgb(200, 16, 46), 2.5f);
+                    g.DrawLine(white, box.Left, box.Top, box.Right, box.Bottom); g.DrawLine(white, box.Left, box.Bottom, box.Right, box.Top);
+                    g.DrawLine(red, box.Left, box.Top, box.Right, box.Bottom); g.DrawLine(red, box.Left, box.Bottom, box.Right, box.Top);
+                    using var whiteX = new SolidBrush(Color.White);
+                    using var redX = new SolidBrush(Color.FromArgb(200, 16, 46));
+                    int cx = box.Left + box.Width / 2, cy = box.Top + box.Height / 2;
+                    g.FillRectangle(whiteX, cx - 5, box.Top, 10, box.Height + 1); g.FillRectangle(whiteX, box.Left, cy - 5, box.Width + 1, 10);
+                    g.FillRectangle(redX, cx - 3, box.Top, 6, box.Height + 1); g.FillRectangle(redX, box.Left, cy - 3, box.Width + 1, 6);
+                }
+                g.ResetClip();
+                if (flash) { using var pen = new Pen(Color.FromArgb(22, 163, 74), 3f); g.DrawPath(pen, path); }
+            }
+            else if (style == "mono")
+            {
+                Color ink = lightTaskbar ? Color.FromArgb(30, 30, 30) : Color.White;
+                if (flash) ink = Color.FromArgb(22, 163, 74);
+                using var font = new Font("Segoe UI", 15f, FontStyle.Bold, GraphicsUnit.Pixel);
+                using var tb = new SolidBrush(ink);
+                g.DrawString(label, font, tb, new RectangleF(0, 1, s, s), fmt);
+            }
+            else if (style == "dot")
+            {
+                var r = new Rectangle(6, 6, 20, 20);
+                if (label == "UA")
+                {
+                    using var blue = new SolidBrush(Color.FromArgb(0, 87, 183));
+                    using var yellow = new SolidBrush(Color.FromArgb(255, 215, 0));
+                    g.FillPie(blue, r, 180, 180); g.FillPie(yellow, r, 0, 180);
+                }
+                else { using var b = new SolidBrush(Color.FromArgb(120, 128, 140)); g.FillEllipse(b, r); }
+                if (flash) { using var pen = new Pen(Color.FromArgb(22, 163, 74), 3f); g.DrawEllipse(pen, 4, 4, 24, 24); }
+            }
+            else
+            {
+                Color bg = flash ? Color.FromArgb(22, 163, 74)
+                         : label == "UA" ? Color.FromArgb(0, 87, 183)
+                         : Color.FromArgb(55, 60, 70);
+                Color fg = !flash && label == "UA" ? Color.FromArgb(255, 215, 0) : Color.White;
+                using (var path = RoundRect(box, 7))
+                using (var b = new SolidBrush(bg))
+                    g.FillPath(b, path);
+                using var font = new Font("Segoe UI", label.Length > 2 ? 11f : 14f, FontStyle.Bold, GraphicsUnit.Pixel);
+                using var tb = new SolidBrush(fg);
+                g.DrawString(label, font, tb, new RectangleF(0, 1, s, s), fmt);
+            }
+
         }
-        return Icon.FromHandle(bmp.GetHicon());
+        if (!muted || flash) return Icon.FromHandle(bmp.GetHicon());
+
+        // Пауза чи програма з винятків: іконка сіріє й блякне, а виключена програма ще й перекреслена
+        using var grey = new Bitmap(s, s);
+        using (var g = Graphics.FromImage(grey))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var m = new System.Drawing.Imaging.ColorMatrix(new[]
+            {
+                new[] { .3f, .3f, .3f, 0, 0 }, new[] { .59f, .59f, .59f, 0, 0 }, new[] { .11f, .11f, .11f, 0, 0 },
+                new[] { 0f, 0, 0, .6f, 0 }, new[] { 0f, 0, 0, 0, 1 },
+            });
+            using var attr = new System.Drawing.Imaging.ImageAttributes();
+            attr.SetColorMatrix(m);
+            g.DrawImage(bmp, new Rectangle(0, 0, s, s), 0, 0, s, s, GraphicsUnit.Pixel, attr);
+            if (excluded && enabled)
+            {
+                using var pen = new Pen(Color.FromArgb(220, 38, 38), 3f);
+                g.DrawLine(pen, 4, s - 4, s - 4, 4);
+            }
+        }
+        return Icon.FromHandle(grey.GetHicon());
     }
 
     private static GraphicsPath RoundRect(Rectangle r, int rad)

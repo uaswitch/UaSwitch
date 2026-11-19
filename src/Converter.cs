@@ -62,7 +62,8 @@ internal sealed class Converter
     private void RevertAuto(WordBuffer w, IntPtr fg)
     {
         ApplyCaseFix(w.Keys, w.AutoCase); // та сама операція повертає регістр назад
-        Toggle(w, fg, w.PrevConverted, w.AutoLayout);
+        Toggle(w, fg, w.PrevConverted, w.AutoLayout, w.AutoFrom != IntPtr.Zero ? w.AutoFrom : null);
+        w.AutoFrom = IntPtr.Zero;
         if (w.AutoOriginal != null)
         {
             _exceptions.Add(w.AutoOriginal); // запам'ятовуємо: це слово більше не виправляти
@@ -128,7 +129,10 @@ internal sealed class Converter
             if (w.Keys.Any(k => k.Shown != cur || k.Mods.HasFlag(KeyMods.AltGr))) return "";
             bool curIsUa = _layouts.IsUa(cur);
             if (!curIsUa && Native.LangId(cur) != Native.LangId(_layouts.En))
+            {
+                if ((_settings.FixOtherCyrillic || _settings.FixUaInRu) && TryOtherCyrillic(w, fg, cur)) { corrected = true; goto done; }
                 return $"розкладка 0x{(long)cur:X} не UA/EN";
+            }
             var alt = _layouts.Other(cur);
 
             string? curText = TextOf(w.Keys, cur), altText = TextOf(w.Keys, alt);
@@ -225,6 +229,54 @@ internal sealed class Converter
     }
 
     /// <summary>Скорочення → текст. Скорочення, набране не в тій розкладці, теж спрацьовує. Під замком.</summary>
+    /// <summary>
+    /// Активна російська (чи білоруська) розкладка, а набрано не нею:
+    /// «привыт» → «привіт» (є ы/э/ъ/ё, а українське прочитання — відоме слово), «руддщ» → «hello».
+    /// Звичайний російський текст не чіпається: для нього немає ні українського, ні англійського слова.
+    /// </summary>
+    private bool TryOtherCyrillic(WordBuffer w, IntPtr fg, IntPtr cur)
+    {
+        int lang = Native.LangId(cur) & 0x3FF;
+        if (lang is not (0x19 or 0x23)) return false; // російська, білоруська
+        string? ru = TextOf(w.Keys, cur), ua = TextOf(w.Keys, _layouts.Ua), en = TextOf(w.Keys, _layouts.En);
+        if (ru == null || ua == null || en == null || ru.Length < 3) return false;
+        if (_exceptions.Blocks(ru) || PasswordGuard.LooksLikeSecret(ru)) return false;
+        string punct = ".,!?;:\")»";
+        string ruCore = ru.TrimEnd(punct.ToCharArray()), uaCore = ua.TrimEnd(punct.ToCharArray()), enCore = en.TrimEnd(punct.ToCharArray());
+
+        IntPtr target;
+        if (_settings.FixUaInRu && ruCore.ToLowerInvariant().IndexOfAny("ыэъё".ToCharArray()) >= 0
+            && !_detector.IsRussianWord(ruCore) && _detector.IsKnownWord(uaCore, true))
+            target = _layouts.Ua;
+        else if (_settings.FixOtherCyrillic && _detector.IsKnownWord(enCore, false) && _detector.ShouldConvert(ua, en, true))
+            target = _layouts.En;
+        else return false;
+
+        w.AutoOriginal = ru.ToLowerInvariant();
+        Toggle(w, fg, withPrev: false, switchLayout: true, to: target);
+        w.AutoFrom = cur;
+        w.AutoLayout = true;
+        w.AutoCase = CaseFix.None;
+        w.ArmedVersion = w.Version;
+        Log.Write(target == _layouts.Ua ? "Українське слово з російської розкладки" : "Англійське слово з російської розкладки");
+        return true;
+    }
+
+    /// <summary>Змінні в тексті автозаміни: {дата}, {час}, {буфер} (і англійською: {date}, {time}, {clipboard}).</summary>
+    private static string ExpandVars(string text)
+    {
+        if (text.IndexOf('{') < 0) return text;
+        var now = DateTime.Now;
+        text = text.Replace("{дата}", now.ToString("dd.MM.yyyy")).Replace("{date}", now.ToString("dd.MM.yyyy"))
+                   .Replace("{час}", now.ToString("HH:mm")).Replace("{time}", now.ToString("HH:mm"));
+        if (text.Contains("{буфер}") || text.Contains("{clipboard}"))
+        {
+            string clip = TryGetText() ?? "";
+            text = text.Replace("{буфер}", clip).Replace("{clipboard}", clip);
+        }
+        return text;
+    }
+
     private bool TryAutoReplace(WordBuffer w, bool sendEnter)
     {
         var shown = w.Keys[0].Shown;
@@ -236,6 +288,7 @@ internal sealed class Converter
             string? alt = TextOf(w.Keys, _layouts.Other(shown));
             if (alt == null || alt.IndexOfAny(AutoReplace.TrailPunct) >= 0 || !_replace.TryMatch(alt, out repl, out suffix)) return false;
         }
+        repl = ExpandVars(repl);
         string trailing = new string(w.Trailing.ToArray());
         string newText = repl + suffix + trailing;
         var inputs = new List<Native.INPUT>();
@@ -497,10 +550,10 @@ internal sealed class Converter
     /// <summary>Запасний шлях (якщо хук не затримав пробіл): «мясо » → «м'ясо ».</summary>
     private bool TryApostrophe(WordBuffer w, string text)
     {
-        if (!_settings.FixApostrophe) return false;
+        if (!_settings.FixApostrophe && !_settings.FixG) return false;
         string core = text.TrimEnd(".,!?;:\")»".ToCharArray());
         string tail = text.Substring(core.Length);
-        string? fixedCore = _detector.FixApostrophe(core, ApostropheChar());
+        string? fixedCore = _detector.FixSpelling(core, ApostropheChar(), _settings.FixApostrophe, _settings.FixG);
         if (fixedCore == null) return false;
 
         string trailing = new string(w.Trailing.ToArray());
@@ -523,7 +576,7 @@ internal sealed class Converter
         try
         {
             var fg = Native.GetForegroundWindow();
-            if (!_busy && _settings.FixApostrophe && _settings.AutoMode && !IsExcludedApp(fg, out _) && !InPasswordField(fg))
+            if (!_busy && (_settings.FixApostrophe || _settings.FixG) && _settings.AutoMode && !IsExcludedApp(fg, out _) && !InPasswordField(fg))
                 lock (_monitor.Sync)
                 {
                     var w = _monitor.Word;
@@ -531,7 +584,7 @@ internal sealed class Converter
                     {
                         string? text = TextOf(w.Keys, w.Keys[0].Shown);
                         string core = text?.TrimEnd(".,!?;:\")»".ToCharArray()) ?? "";
-                        string? fixedCore = text == null ? null : _detector.FixApostrophe(core, ApostropheChar());
+                        string? fixedCore = text == null ? null : _detector.FixSpelling(core, ApostropheChar(), _settings.FixApostrophe, _settings.FixG);
                         if (text != null && fixedCore != null)
                         {
                             string tail = text.Substring(core.Length);
@@ -636,10 +689,10 @@ internal sealed class Converter
     }
 
     /// <summary>Перемикає слово (і за потреби попереднє однобуквене) в іншу розкладку на екрані.</summary>
-    private void Toggle(WordBuffer w, IntPtr fg, bool withPrev, bool switchLayout)
+    private void Toggle(WordBuffer w, IntPtr fg, bool withPrev, bool switchLayout, IntPtr? to = null)
     {
         var shownNow = w.Keys[w.Keys.Count - 1].Shown;
-        var target = switchLayout ? _layouts.Other(shownNow) : shownNow;
+        var target = to ?? (switchLayout ? _layouts.Other(shownNow) : shownNow);
         int erase = w.Trailing.Count;
         var text = new System.Text.StringBuilder();
 

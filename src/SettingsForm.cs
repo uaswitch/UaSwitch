@@ -8,7 +8,7 @@ internal sealed class SettingsForm : Form
 {
     private readonly Settings _s;
     private readonly Exceptions _ex;
-    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _passwords, _sound, _flash, _updates, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _translit, _amount, _replaceOn;
+    private readonly CheckBox _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _g, _cyrEn, _cyrUa, _passwords, _sound, _flash, _updates, _autostart, _pause, _dShift, _dCtrl, _capsSwitch, _translit, _amount, _replaceOn;
     private readonly AutoReplace _replace;
     private readonly ListView _replaceList = new();
     private readonly ListBox _apps = new(), _words = new();
@@ -55,6 +55,7 @@ internal sealed class SettingsForm : Form
         _twoCaps = Check(general, "Виправляти дві великі на початку  (ПРивіт → Привіт)", _s.FixTwoCaps);
         _sentence = Check(general, "Велика літера на початку речення  (так. добре → так. Добре)", _s.SentenceCaps);
         _apostrophe = Check(general, "Ставити апостроф  (мясо → м'ясо, обєкт → об'єкт)", _s.FixApostrophe);
+        _g = Check(general, "Ставити ґ  (гудзик → ґудзик, агрус → аґрус)", _s.FixG);
         _passwords = Check(general, "Не виправляти в полях паролів  (і слова з цифрами: Qwe12rty)", _s.SkipPasswords);
         _sound = Check(general, "Тихий звук при виправленні", _s.Sound);
         _flash = Check(general, "Підсвічувати іконку при виправленні", _s.Flash);
@@ -95,7 +96,22 @@ internal sealed class SettingsForm : Form
         _replaceOn = Check(repl, "Замінювати скорочення текстом після пробілу чи Enter", _s.AutoReplace);
         BuildReplaceEditor(repl);
 
-        tabs.TabPages.AddRange(new[] { general, keys, apps, words, repl });
+        // ---- Додатково: вигляд іконки й інші розкладки ----
+        var extra = Page("Додатково");
+        AddLabel(extra, "Вигляд іконки біля годинника:");
+        foreach (var (key, text) in new[] { ("text", "Текст  UA / EN  (як зараз)"), ("flags", "Прапори"),
+                                            ("mono", "Однотонна, під колір панелі завдань"), ("dot", "Лише кольорова крапка") })
+        {
+            var rb = new RadioButton { Text = text, AutoSize = true, Checked = _s.IconStyle == key, Margin = new Padding(12, 2, 3, 2), Tag = key };
+            rb.CheckedChanged += (o, _) => { if (((RadioButton)o!).Checked) { _s.IconStyle = (string)((RadioButton)o!).Tag; Save(); } };
+            Flow(extra).Controls.Add(rb);
+        }
+        AddLabel(extra, "\nЯкщо в системі є ще російська (чи білоруська) розкладка:");
+        _cyrEn = Check(extra, "Англійське слово, набране нею, виправляти  (руддщ → hello)", _s.FixOtherCyrillic);
+        _cyrUa = Check(extra, "Українське слово, набране нею, виправляти  (привыт → привіт) — бета", _s.FixUaInRu);
+        AddLabel(extra, "Звичайний текст цією мовою програма не чіпає.");
+
+        tabs.TabPages.AddRange(new[] { general, keys, apps, words, repl, extra });
 
         // Нижня смужка: версія ліворуч, підказка про автозбереження праворуч
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 48 };
@@ -120,7 +136,7 @@ internal sealed class SettingsForm : Form
         Controls.Add(bottom);
 
         // Автозбереження: кожна галочка зберігається й застосовується одразу
-        foreach (var c in new[] { _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _passwords, _sound, _flash, _updates,
+        foreach (var c in new[] { _enabled, _auto, _early, _comma, _space, _caps, _twoCaps, _sentence, _apostrophe, _g, _cyrEn, _cyrUa, _passwords, _sound, _flash, _updates,
                                   _pause, _dShift, _dCtrl, _capsSwitch, _translit, _amount, _replaceOn })
             c.CheckedChanged += (_, _) => Save();
         _autostart.CheckedChanged += (_, _) =>
@@ -155,6 +171,9 @@ internal sealed class SettingsForm : Form
         _s.FixTwoCaps = _twoCaps.Checked;
         _s.SentenceCaps = _sentence.Checked;
         _s.FixApostrophe = _apostrophe.Checked;
+        _s.FixG = _g.Checked;
+        _s.FixOtherCyrillic = _cyrEn.Checked;
+        _s.FixUaInRu = _cyrUa.Checked;
         _s.CheckUpdates = _updates.Checked;
         _s.SkipPasswords = _passwords.Checked;
         _s.Sound = _sound.Checked;
@@ -226,6 +245,7 @@ internal sealed class SettingsForm : Form
         buttons.Controls.Add(remove);
         flow.Controls.Add(buttons);
         AddLabel(p, "Наприклад: .зп → «З повагою, Руслан».\n" +
+                    "У тексті можна писати {дата}, {час}, {буфер}.\n" +
                     "Скорочення краще починати з крапки, щоб вони\n" +
                     "не збігалися зі звичайними словами.\n" +
                     "Backspace одразу після заміни — скасувати.");
