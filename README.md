@@ -14,8 +14,16 @@
 
 Іконка біля годинника показує поточну розкладку (`UA` або `EN`), а при виправленні на мить стає зеленою:
 
-<p align="center"><img src="docs/screen-tray.png" alt="Іконка UaSwitch на панелі задач Windows 11" width="457"></p>
-<p align="center"><img src="docs/screen-tray-flags.png" alt="Іконка UaSwitch у вигляді прапора" width="514"><br><sub>Вигляд «Прапори» (Налаштування → Додатково)</sub></p>
+<table align="center">
+<tr>
+<td align="center"><img src="docs/tray-style-text.png" alt="Текст UA / EN" width="190"><br><sub>Текст UA / EN</sub></td>
+<td align="center"><img src="docs/tray-style-flags.png" alt="Прапори" width="190"><br><sub>Прапори</sub></td>
+<td align="center"><img src="docs/tray-style-mono.png" alt="Однотонна" width="190"><br><sub>Однотонна</sub></td>
+<td align="center"><img src="docs/tray-style-dot.png" alt="Крапка" width="190"><br><sub>Крапка</sub></td>
+</tr>
+</table>
+
+Вигляд іконки обирається в Налаштуваннях → Додатково.
 
 Налаштування відкриваються подвійним клацанням по іконці. Кнопок «Зберегти» немає: кожна зміна діє одразу.
 
