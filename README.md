@@ -27,6 +27,10 @@
 <td align="center"><img src="docs/screen-hotkeys.png" alt="Вкладка «Гарячі клавіші»" width="380"><br><sub>Гарячі клавіші</sub></td>
 <td align="center"><img src="docs/screen-apps.png" alt="Вкладка «Програми»" width="380"><br><sub>Програми</sub></td>
 </tr>
+<tr>
+<td align="center"><img src="docs/screen-extra.png" alt="Вкладка «Додатково»" width="380"><br><sub>Додатково</sub></td>
+<td></td>
+</tr>
 </table>
 
 ## Чим відрізняється від аналогів
