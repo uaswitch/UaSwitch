@@ -26,6 +26,8 @@ internal sealed class WordBuffer
     public bool AutoConverted;
     public bool PrevConverted;
     public bool AutoLayout;
+    /// <summary>Розкладка, з якої слово перекладено (якщо не UA/EN) — щоб Backspace повернув саме її.</summary>
+    public IntPtr AutoFrom;
     public CaseFix AutoCase;
     public string? AutoOriginal;
     /// <summary>Попередні слова рядка (як на екрані, кожне через один пробіл) — для ком і контексту мови.</summary>

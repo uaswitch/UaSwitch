@@ -105,6 +105,11 @@ internal sealed class AutoDetector
     // «м'я» — слово, що починається з «мя», пишеться з апострофом; «…$» — лише ціле слово.
     private readonly HashSet<string> _apoKeys = new();
     private readonly HashSet<char> _apoFirst = new();
+    // Ключі «ґ» з того самого словника: «ґудз» — слово, що починається з «гудз», пишеться з «ґ»; «…$» — лише ціле слово
+    private readonly HashSet<string> _gKeys = new();
+    // Російські слова з ы/э/ъ/ё (wordfreq, 200 тис.): щоб «стороны» не стало «стороні»
+    private readonly HashSet<string> _ruSig = new();
+    public bool IsRussianWord(string w) => _ruSig.Contains(Normalize(w).ToLowerInvariant());
     public bool Ready => _ua != null && _en != null;
 
     public void Load()
@@ -117,6 +122,8 @@ internal sealed class AutoDetector
         _en = en;
         foreach (var k in ReadWords("UaSwitch.apo.txt.gz"))
             if (k.Length > 2) { _apoKeys.Add(k); _apoFirst.Add(k[k.IndexOf('\'') + 1]); }
+        foreach (var k in ReadWords("UaSwitch.g.txt.gz")) if (k.Length > 0) _gKeys.Add(k);
+        foreach (var k in ReadWords("UaSwitch.ru.txt.gz")) if (k.Length > 0) _ruSig.Add(k);
         _ua = ua; // Ready стає true лише коли обидві мови готові
         Log.Write($"Словники: UA {ua.Rank.Count}, EN {en.Rank.Count}, {sw.ElapsedMilliseconds} мс");
     }
@@ -313,6 +320,37 @@ internal sealed class AutoDetector
         if (letters.Count > 1 && letters.All(char.IsUpper)) return res.ToUpperInvariant();
         if (char.IsUpper(word[0])) return char.ToUpperInvariant(res[0]) + res.Substring(1);
         return res;
+    }
+
+    /// <summary>
+    /// «гудзик» → «ґудзик», «ганок» → «ґанок», «агрус» → «аґрус». Лише слова з малої літери:
+    /// з великої часто пишуть імена й назви («Гордон», «Вашингтон»), їх не чіпаємо.
+    /// </summary>
+    public string? FixG(string word)
+    {
+        if (!Ready || word.Length < 2 || !char.IsLower(word[0]) || word.IndexOf('г') < 0) return null;
+        string low = Normalize(word);
+        if (!low.All(c => char.IsLetter(c) || c == '\'' || c == '-')) return null;
+        for (int i = 0; i < low.Length; i++)
+        {
+            if (low[i] != 'г') continue;
+            string left = low.Substring(0, i) + "ґ";
+            bool hit = false;
+            for (int k = 0; k <= low.Length - i - 1 && !hit; k++)
+                hit = _gKeys.Contains(left + low.Substring(i + 1, k));
+            if (hit || _gKeys.Contains(left + low.Substring(i + 1) + "$"))
+                return word.Substring(0, i) + "ґ" + word.Substring(i + 1);
+        }
+        return null;
+    }
+
+    /// <summary>Апостроф і «ґ» разом: повертає виправлене слово або null.</summary>
+    public string? FixSpelling(string word, char apo, bool apostrophe, bool g)
+    {
+        string cur = word;
+        if (apostrophe && FixApostrophe(cur, apo) is { } a) cur = a;
+        if (g && FixG(cur) is { } b) cur = b;
+        return cur == word ? null : cur;
     }
 
     /// <summary>Однобуквене слово, яке варто виправити разом із наступним («z ljvf» → «я вдома»).</summary>

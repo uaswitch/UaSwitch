@@ -21,6 +21,13 @@ internal sealed class Settings
     public bool FixTwoCaps { get; set; } = true;
     public bool SentenceCaps { get; set; } = true;
     public bool FixApostrophe { get; set; } = true;
+    public bool FixG { get; set; } = true;
+    /// <summary>Українська, набрана в російській розкладці («привыт» → «привіт»), і англійська в ній («руддщ» → «hello»).</summary>
+    public bool FixOtherCyrillic { get; set; } = true;
+    /// <summary>Бета: «привыт» → «привіт» (українська в російській розкладці). За замовчуванням вимкнено.</summary>
+    public bool FixUaInRu { get; set; } = false;
+    /// <summary>Вигляд іконки: text, flags, mono, dot.</summary>
+    public string IconStyle { get; set; } = "text";
     /// <summary>Привітальне сповіщення вже показано (показуємо лише при першому запуску).</summary>
     public bool WelcomeShown { get; set; }
     /// <summary>Не виправляти нічого в полях паролів і в «словах» з цифрами чи символами.</summary>
@@ -78,6 +85,10 @@ internal sealed class Settings
                     case nameof(FixTwoCaps): s.FixTwoCaps = val; break;
                     case nameof(SentenceCaps): s.SentenceCaps = val; break;
                     case nameof(FixApostrophe): s.FixApostrophe = val; break;
+                    case nameof(FixG): s.FixG = val; break;
+                    case nameof(FixOtherCyrillic): s.FixOtherCyrillic = val; break;
+                    case nameof(FixUaInRu): s.FixUaInRu = val; break;
+                    case nameof(IconStyle): s.IconStyle = raw; break;
                     case nameof(WelcomeShown): s.WelcomeShown = val; break;
                     case nameof(SkipPasswords): s.SkipPasswords = val; break;
                     case nameof(CheckUpdates): s.CheckUpdates = val; break;
@@ -116,6 +127,10 @@ internal sealed class Settings
                 $"{nameof(FixTwoCaps)}={FixTwoCaps.ToString().ToLower()}",
                 $"{nameof(SentenceCaps)}={SentenceCaps.ToString().ToLower()}",
                 $"{nameof(FixApostrophe)}={FixApostrophe.ToString().ToLower()}",
+                $"{nameof(FixG)}={FixG.ToString().ToLower()}",
+                $"{nameof(FixOtherCyrillic)}={FixOtherCyrillic.ToString().ToLower()}",
+                $"{nameof(FixUaInRu)}={FixUaInRu.ToString().ToLower()}",
+                $"{nameof(IconStyle)}={IconStyle}",
                 $"{nameof(WelcomeShown)}={WelcomeShown.ToString().ToLower()}",
                 $"{nameof(SkipPasswords)}={SkipPasswords.ToString().ToLower()}",
                 $"{nameof(CheckUpdates)}={CheckUpdates.ToString().ToLower()}",
