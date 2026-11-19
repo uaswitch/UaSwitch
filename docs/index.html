@@ -5,7 +5,7 @@
 <meta name="author" content="Ruslan Pichkar">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UaSwitch — перемикач розкладок УКР/АНГЛ</title>
-<meta name="description" content="Мінімалістичний перемикач розкладок УКР/АНГЛ для Windows: один файл менше 1 МБ, без встановлення й інтернету. Виправляє розкладку, коми, регістр і пробіли.">
+<meta name="description" content="Мінімалістичний перемикач розкладок УКР/АНГЛ для Windows: один файл менше 1 МБ, без встановлення й інтернету. Виправляє розкладку, апостроф, ґ, коми й регістр; транслітерація і сума прописом.">
 <meta property="og:title" content="UaSwitch — перемикач розкладок УКР/АНГЛ">
 <meta property="og:description" content="Набрали ghbdsn замість привіт? UaSwitch виправить сам. Безкоштовно, відкритий код.">
 <meta property="og:image" content="https://uaswitch.github.io/UaSwitch/social-preview.png">
@@ -194,11 +194,15 @@ footer a{color:inherit}
       <div class="card"><div class="ico">⚡</div><h3>Виправляє на ходу</h3><p>Часто вже на 4-й літері: <code>ghbd</code> → <code>прив</code>, далі ви набираєте в правильній розкладці.</p></div>
       <div class="card"><div class="ico">⌨️</div><h3>Вручну, коли треба</h3><p><kbd>Pause</kbd> або двічі <kbd>Shift</kbd> — останнє слово. Двічі <kbd>Ctrl</kbd> — виділений текст.</p></div>
       <div class="card"><div class="ico">↩️</div><h3>Легко скасувати</h3><p><kbd>Backspace</kbd> одразу після виправлення повертає як було й запам'ятовує слово.</p></div>
-      <div class="card"><div class="ico">ʼ</div><h3>Апостроф</h3><p><code>мясо</code> → <code>м'ясо</code>, <code>обєкт</code> → <code>об'єкт</code>. Повний словник української: «бюро» й «буряк» не чіпає. Працює й у Word.</p></div>
+      <div class="card"><div class="ico">ʼ</div><h3>Апостроф і ґ</h3><p><code>мясо</code> → <code>м'ясо</code>, <code>гудзик</code> → <code>ґудзик</code>, <code>агрус</code> → <code>аґрус</code>. Повний словник української: «бюро» й «Гордон» не чіпає. Працює й у Word.</p></div>
       <div class="card"><div class="ico">,</div><h3>Коми і регістр</h3><p><code>знаю де він</code> → <code>знаю, де він</code>, <code>так. добре</code> → <code>так. Добре</code>, <code>пРИВІТ</code> → <code>Привіт</code>.</p></div>
-      <div class="card"><div class="ico">✍️</div><h3>Автозаміна</h3><p>Ваші скорочення стають текстом: <code>.дяк</code> → «Дякую за допомогу!». Навіть у неправильній розкладці.</p></div>
+      <div class="card"><div class="ico">✍️</div><h3>Автозаміна</h3><p>Ваші скорочення стають текстом: <code>.дяк</code> → «Дякую за допомогу!». Можна вставляти <code>{дата}</code>, <code>{час}</code>, <code>{буфер}</code>.</p></div>
       <div class="card"><div class="ico">⇪</div><h3>Caps Lock — мова</h3><p>За бажанням Caps Lock перемикає УКР ↔ АНГЛ одним натисканням, а великі літери — <kbd>Shift</kbd>+<kbd>Caps</kbd>.</p></div>
-      <div class="card"><div class="ico">🛡️</div><h3>Не заважає в роботі</h3><p>Не чіпає коди, номери, абревіатури й email. Можна вимкнути в окремих програмах.</p></div>
+      <div class="card"><div class="ico">🛡️</div><h3>Не заважає в роботі</h3><p>Не чіпає паролі, коди, номери, абревіатури й email. Можна вимкнути в окремих програмах, наприклад в іграх.</p></div>
+      <div class="card"><div class="ico">🔤</div><h3>Транслітерація</h3><p>Виділіть «Шевченко Олександр» → <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> → «Shevchenko Oleksandr», як у паспорті (КМУ №55).</p></div>
+      <div class="card"><div class="ico">₴</div><h3>Сума прописом</h3><p>Виділіть «1250,50» → <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> → «Одна тисяча двісті п'ятдесят гривень 50 копійок».</p></div>
+      <div class="card"><div class="ico">🌐</div><h3>Є ще російська розкладка?</h3><p>Англійське слово, набране нею, теж виправиться: <code>руддщ</code> → <code>hello</code>. Звичайний текст цією мовою не чіпається.</p></div>
+      <div class="card"><div class="ico">🇺🇦</div><h3>Іконка на смак</h3><p>Текст UA/EN, прапори, однотонна чи кольорова крапка. На паузі сіріє, у виключеннях — перекреслена.</p></div>
     </div>
   </section>
 
@@ -219,8 +223,9 @@ footer a{color:inherit}
         <h3>Функціональний</h3>
         <ul>
           <li>Виправляє розкладку, часто вже на 4-й літері, з урахуванням мови речення</li>
-          <li>Ставить апострофи й коми, велику літеру на початку речення, лікує Caps Lock</li>
-          <li>Не чіпає коди, номери, абревіатури й імена файлів</li>
+          <li>Ставить апострофи, ґ і коми, велику літеру на початку речення, лікує Caps Lock</li>
+          <li>Транслітерація за КМУ №55 і сума прописом для документів</li>
+          <li>Не чіпає паролі, коди, номери, абревіатури й імена файлів</li>
           <li>Будь-яке виправлення скасовується одним <kbd>Backspace</kbd></li>
         </ul>
       </div>
@@ -254,6 +259,7 @@ footer a{color:inherit}
       <div class="state"><img src="tray-ua-flash.png" alt=""><h3>Щойно виправлено</h3><p>На мить стає зеленою, лунає тихий клік</p></div>
       <div class="state"><img src="tray-off.png" alt=""><h3>Вимкнено</h3><p>Сіра іконка</p></div>
     </div>
+    <p class="note">Вигляд можна змінити (Налаштування → Додатково): текст UA/EN, прапори, однотонна під колір панелі або кольорова крапка. У програмі-виключенні іконка перекреслена червоним.</p>
   </section>
 
   <section>
