@@ -21,6 +21,29 @@ internal static class TextTools
         ['є'] = "ye", ['ї'] = "yi", ['й'] = "y", ['ю'] = "yu", ['я'] = "ya",
     };
 
+    /// <summary>Регістр по колу: малі → ВЕЛИКІ → З Великої → малі. Повертає null, якщо літер немає.</summary>
+    public static string? CycleCase(string s)
+    {
+        if (!s.Any(char.IsLetter)) return null;
+        string lower = s.ToLowerInvariant(), upper = s.ToUpperInvariant(), title = Title(s);
+        if (s == lower) return upper;
+        if (s == upper) return title != upper ? title : lower;
+        return lower;
+    }
+
+    private static string Title(string s)
+    {
+        var sb = new System.Text.StringBuilder(s.Length);
+        bool start = true;
+        foreach (char c in s)
+        {
+            sb.Append(start ? char.ToUpperInvariant(c) : char.ToLowerInvariant(c));
+            if (char.IsLetter(c)) start = false;
+            else if (char.IsWhiteSpace(c) || c == '-' || c == '«' || c == '"' || c == '(') start = true;
+        }
+        return sb.ToString();
+    }
+
     public static bool HasCyrillic(string s) => s.Any(c => c is >= 'А' and <= 'ї' or 'ґ' or 'Ґ' or 'є' or 'Є' or 'і' or 'І' or 'ї' or 'Ї');
 
     /// <summary>«Шевченко Олександр» → «Shevchenko Oleksandr», «Згурський» → «Zghurskyi».</summary>

@@ -42,10 +42,12 @@ internal sealed class WordBuffer
     public bool NoAuto;
     public bool CommaInserted;
     public int ArmedVersion = -1;
+    /// <summary>Перед цим словом людина сама перемкнула мову — розкладку слова не виправляємо.</summary>
+    public bool ManualLayout;
 
     public void Clear()
     {
-        Keys.Clear(); Trailing.Clear(); Prev = null; Recent.Clear(); UndoErase = 0; UndoText = null; UndoCommaAt = -1; ScreenText = null; NoAuto = CommaInserted = false;
+        Keys.Clear(); Trailing.Clear(); Prev = null; Recent.Clear(); UndoErase = 0; UndoText = null; UndoCommaAt = -1; ScreenText = null; NoAuto = CommaInserted = ManualLayout = false;
         AutoConverted = PrevConverted = AutoLayout = false; AutoCase = CaseFix.None; ArmedVersion = -1;
         Version++;
     }
@@ -107,6 +109,20 @@ internal sealed class KeyboardMonitor : IDisposable
     /// У програмах зі списку виключень (ігри тощо) UaSwitch повністю «прозорий»: жодних гарячих клавіш,
     /// Caps Lock не перемикає мову — клавіші йдуть у програму без затримок.
     /// </summary>
+    /// <summary>Перерахувати «прозорість» для поточного вікна (гра могла перейти на весь екран). Викликати з потоку інтерфейсу.</summary>
+    public void RefreshExcluded()
+    {
+        var f = IsExcludedWindow;
+        var h = _exclHwnd;
+        if (f != null && h != IntPtr.Zero) _excluded = f(h);
+    }
+
+    /// <summary>Час останнього натискання звичайної клавіші (для індикатора біля текстового курсора).</summary>
+    public volatile int LastKeyTick;
+    /// <summary>Клавіші гарячих комбінацій Ctrl+Alt+… самої програми — не вважати їх набором тексту.</summary>
+    public volatile uint[] OwnHotkeys = new uint[0];
+    private IntPtr _lastHkl, _lastHklHwnd;
+
     private void CheckForeground()
     {
         var fg = Native.GetForegroundWindow();
@@ -278,6 +294,11 @@ internal sealed class KeyboardMonitor : IDisposable
             // Будь-яка звичайна клавіша скасовує «тап» модифікатора
             _otherSinceDown = true;
             _lastTap = Mod.None;
+            LastKeyTick = Environment.TickCount;
+
+            // Ctrl+Alt+T/S/R — наші гарячі клавіші: слово перед ними не губимо
+            if (_ctrl && _alt && !_win && Array.IndexOf(OwnHotkeys, k.vkCode) >= 0)
+                return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
 
             if (_excluded)
             {
@@ -395,6 +416,11 @@ internal sealed class KeyboardMonitor : IDisposable
                 Word.Prev = prev;
                 Word.Recent.AddRange(recent);
             }
+            // Мова змінилася між словами в тому самому вікні, і це зробила не програма — отже, людина сама
+            if (Word.Keys.Count == 0 && _lastHkl != IntPtr.Zero && hkl != _lastHkl && hwnd == _lastHklHwnd)
+                if (hkl != Converter.OwnTarget) Word.ManualLayout = true;
+            if (hkl == Converter.OwnTarget) Converter.OwnTarget = IntPtr.Zero;
+            _lastHkl = hkl; _lastHklHwnd = hwnd;
             Word.Keys.Add(new KeyStroke { Vk = vk, Scan = k.scanCode, Mods = mods, Shown = hkl });
             Word.Version++;
             if (Word.Keys.Count == 1 && WordStarted is { } ws) _ui.Post(_ => ws(), null);
