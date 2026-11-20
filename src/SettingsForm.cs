@@ -357,11 +357,14 @@ internal sealed class SettingsForm : Form
 
     private void Radios(TabPage p, string current, Action<string> set, params (string key, string text)[] items)
     {
+        // Кожна група — в окремій панелі, інакше Windows вважає всі перемикачі вкладки однією групою
+        var group = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) };
+        Flow(p).Controls.Add(group);
         foreach (var (key, text) in items)
         {
             var rb = new RadioButton { Text = text, AutoSize = true, Checked = current == key, Margin = new Padding(12, 2, 3, 2), Tag = key };
             rb.CheckedChanged += (o, _) => { if (((RadioButton)o!).Checked) { set((string)((RadioButton)o!).Tag); Save(); } };
-            Flow(p).Controls.Add(rb);
+            group.Controls.Add(rb);
         }
     }
 
