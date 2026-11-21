@@ -55,6 +55,15 @@ internal sealed class Converter
             var w = _monitor.Word;
             if (w.Hwnd != fg || w.Keys.Count == 0) return;
             if (w.CommaInserted) RevertComma(w);
+            else if (w.CaseOnlyUndo && w.AutoCase == CaseFix.Sentence)
+            {
+                ApplyCaseFix(w.Keys, CaseFix.Sentence); // та сама операція повертає малу літеру
+                Toggle(w, fg, withPrev: false, switchLayout: false);
+                w.AutoCase = CaseFix.None;
+                w.CaseOnlyUndo = false;
+                w.ArmedVersion = -1;
+                w.NoAuto = true;
+            }
             else if (w.AutoConverted) RevertAuto(w, fg);
         }
     }
@@ -118,6 +127,7 @@ internal sealed class Converter
                     ApplyCaseFix(w.Keys, CaseFix.Sentence);
                     Toggle(w, fg, withPrev: false, switchLayout: false);
                     w.AutoCase = CaseFix.Sentence;
+                    w.CaseOnlyUndo = true; // Backspace прибере лише велику літеру, мова слова лишиться
                     w.ArmedVersion = w.Version;
                     corrected = true;
                 }
@@ -130,14 +140,15 @@ internal sealed class Converter
             bool curIsUa = _layouts.IsUa(cur);
             if (!curIsUa && Native.LangId(cur) != Native.LangId(_layouts.En))
             {
-                if ((_settings.FixOtherCyrillic || _settings.FixUaInRu) && TryOtherCyrillic(w, fg, cur)) { corrected = true; goto done; }
+                if ((_settings.FixOtherCyrillic || _settings.FixUaInRu) && !(w.ManualLayout && _settings.RespectManual) && TryOtherCyrillic(w, fg, cur)) { corrected = true; goto done; }
                 return $"розкладка 0x{(long)cur:X} не UA/EN";
             }
             var alt = _layouts.Other(cur);
 
             string? curText = TextOf(w.Keys, cur), altText = TextOf(w.Keys, alt);
             if (curText == null || altText == null) return "не вдалося прочитати символи";
-            if (_exceptions.Blocks(curText)) return "";
+            // Слово-виняток: розкладку й регістр не чіпаємо, але велику літеру на початку речення, апостроф і кому — так
+            bool excepted = _exceptions.Blocks(curText);
             if (_settings.SkipPasswords && PasswordGuard.LooksLikeSecret(curText)) return ""; // «Qwe12rty», «p@ss»
             if (TrySpaceAfterPunct(w, curText, curIsUa)) { corrected = true; goto done; }
             if (HasInnerPunct(curText) && !altText.All(IsWordChar) || LooksLikeFileOrDomain(curText))
@@ -156,7 +167,8 @@ internal sealed class Converter
 
             // Регістр: випадковий Caps Lock (пРИВІТ) або дві великі на початку (ПРивіт)
             var fix = CaseFix.None;
-            if (_settings.FixCaps && _monitor.CapsOn && (IsCapsPattern(curText) || IsCapsPattern(altText)))
+            if (excepted) { }
+            else if (_settings.FixCaps && _monitor.CapsOn && (IsCapsPattern(curText) || IsCapsPattern(altText)))
                 fix = CaseFix.Caps;
             else if (_settings.FixTwoCaps && (IsTwoCapsPattern(curText) || IsTwoCapsPattern(altText)))
                 fix = CaseFix.TwoCaps;
@@ -171,7 +183,9 @@ internal sealed class Converter
             }
 
             var (ctxUa, ctxEn) = AutoDetector.Context(w.Recent);
-            bool layout = _detector.ShouldConvert(curFixed, altFixed, curIsUa, ctxUa, ctxEn);
+            // Людина щойно сама перемкнула мову — перше слово не перекладаємо (але регістр, апостроф, кому — так)
+            bool manual = w.ManualLayout && _settings.RespectManual;
+            bool layout = !manual && !excepted && _detector.ShouldConvert(curFixed, altFixed, curIsUa, ctxUa, ctxEn);
             if (!layout && fix == CaseFix.TwoCaps && !_detector.IsKnownWord(curFixed, curIsUa)) fix = CaseFix.None;
             if (fix == CaseFix.None && WantsSentenceCap(w, layout ? altText : curText)) fix = CaseFix.Sentence;
             if (!layout && fix == CaseFix.None)
@@ -286,7 +300,13 @@ internal sealed class Converter
         if (!_replace.TryMatch(typed, out var repl, out var suffix))
         {
             string? alt = TextOf(w.Keys, _layouts.Other(shown));
-            if (alt == null || alt.IndexOfAny(AutoReplace.TrailPunct) >= 0 || !_replace.TryMatch(alt, out repl, out suffix)) return false;
+            if (alt == null) return false;
+            // Крапку на початку скорочення («.дата») набирають тією клавішею, де вона є в поточній розкладці
+            string? dotAlt = typed.StartsWith(".") && alt.Length > 1 ? "." + alt.Substring(1) : null;
+            bool altOk = alt.Substring(alt.StartsWith(".") ? 1 : 0).IndexOfAny(AutoReplace.TrailPunct) < 0;
+            if (!(altOk && _replace.TryMatch(alt, out repl, out suffix))
+                && !(dotAlt != null && dotAlt.IndexOfAny(AutoReplace.TrailPunct, 1) < 0 && _replace.TryMatch(dotAlt, out repl, out suffix)))
+                return false;
         }
         repl = ExpandVars(repl);
         string trailing = new string(w.Trailing.ToArray());
@@ -319,6 +339,7 @@ internal sealed class Converter
         if (fg == _lastFg && (DateTime.UtcNow - _lastSwitch).TotalMilliseconds < 1500 && _lastTarget != IntPtr.Zero)
             hkl = _lastTarget;
         SwitchLayout(fg, _layouts.Other(hkl));
+        OwnTarget = IntPtr.Zero; // Caps Lock натиснула людина — це її вибір мови
     }
 
     // ---------- Перемикання за першими буквами ----------
@@ -332,7 +353,8 @@ internal sealed class Converter
         lock (_monitor.Sync)
         {
             var w = _monitor.Word;
-            if (w.Version != version || w.Keys.Count < 4 || w.Trailing.Count != 0 || w.AutoConverted || w.NoAuto || w.Hwnd != fg)
+            if (w.Version != version || w.Keys.Count < 4 || w.Trailing.Count != 0 || w.AutoConverted || w.NoAuto || w.Hwnd != fg
+                || w.ManualLayout && _settings.RespectManual)
                 return;
             var cur = w.Keys[0].Shown;
             if (w.Keys.Any(k => k.Shown != cur || k.Mods.HasFlag(KeyMods.AltGr))) return;
@@ -344,7 +366,8 @@ internal sealed class Converter
 
             string? curText = TextOf(w.Keys, cur), altText = TextOf(w.Keys, alt);
             if (curText == null || altText == null || _exceptions.Blocks(curText)) return;
-            if (_settings.AutoReplace && (_replace.IsPrefix(curText) || _replace.IsPrefix(altText))) return; // набирається скорочення
+            if (_settings.AutoReplace && (_replace.IsPrefix(curText) || _replace.IsPrefix(altText)
+                || curText.StartsWith(".") && _replace.IsPrefix("." + altText.Substring(1)))) return; // набирається скорочення
             if (!_detector.ShouldSwitchEarly(curText, altText, curIsUa)) return;
 
             bool withPrev = false;
@@ -729,6 +752,50 @@ internal sealed class Converter
         TextTools.HasCyrillic(t) ? TextTools.Transliterate(t) : null,
         "Виділіть текст українською", "Наприклад, ім'я та прізвище: «Шевченко Олександр».", restoreTo);
 
+    /// <summary>
+    /// Регістр по колу (малі → ВЕЛИКІ → З великої). Одразу після слова — змінює це слово,
+    /// інакше — виділений текст.
+    /// </summary>
+    public void CycleCase(IntPtr restoreTo = default)
+    {
+        if (_busy) return;
+        var fg = Native.GetForegroundWindow();
+        if (restoreTo == IntPtr.Zero)
+        {
+            lock (_monitor.Sync)
+            {
+                var w = _monitor.Word;
+                if (w.Keys.Count > 0 && w.Hwnd == fg && CycleWordCase(w)) { Corrected?.Invoke(); return; }
+            }
+        }
+        TransformSelection(TextTools.CycleCase, "Виділіть текст",
+            "Або натисніть одразу після слова — зміниться його регістр: малі → ВЕЛИКІ → З великої.", restoreTo);
+    }
+
+    private bool CycleWordCase(WordBuffer w)
+    {
+        var shown = w.Keys[0].Shown;
+        if (w.ScreenText != null || w.Keys.Any(k => k.Shown != shown)) return false;
+        string? text = TextOf(w.Keys, shown);
+        if (text == null || text.Length != w.Keys.Count) return false;
+        string? next = TextTools.CycleCase(text);
+        if (next == null || next == text || next.Length != text.Length) return false;
+        for (int i = 0; i < w.Keys.Count; i++)
+        {
+            var k = w.Keys[i];
+            if (text[i] == next[i]) continue;
+            foreach (var m in new[] { k.Mods ^ KeyMods.Shift, k.Mods ^ KeyMods.Caps, k.Mods ^ KeyMods.Shift ^ KeyMods.Caps })
+                if (_layouts.CharFor(k.Vk, k.Scan, m, shown) == next[i].ToString()) { k.Mods = m; break; }
+        }
+        var inputs = new List<Native.INPUT>();
+        for (int i = 0; i < text.Length + w.Trailing.Count; i++) AddKey(inputs, VK_BACK);
+        AddText(inputs, next + new string(w.Trailing.ToArray()));
+        Send(inputs);
+        w.ArmedVersion = -1;
+        w.NoAuto = true; // регістр людина обрала сама — далі слово не чіпаємо
+        return true;
+    }
+
     public void AmountSelection(IntPtr restoreTo = default) => TransformSelection(TextTools.AmountInWords,
         "Виділіть суму числом", "Наприклад: 1250,50 або 1 250.50 грн.", restoreTo);
 
@@ -814,10 +881,17 @@ internal sealed class Converter
     private static readonly string[] ModernWindowClasses = { "ApplicationFrameWindow", "Windows.UI.Core.CoreWindow", "WinUIDesktopWin32WindowClass" };
     private static readonly HashSet<string> _loggedClasses = new();
 
+    /// <summary>Розкладка, на яку щойно перемкнула сама програма (щоб не прийняти це за ручне перемикання).</summary>
+    public static volatile IntPtr OwnTarget;
+    /// <summary>Програма перемкнула мову — індикатор біля курсора покаже це на мить.</summary>
+    public static event Action? LayoutSwitched;
+
     public static void SwitchLayout(IntPtr fg, IntPtr hkl)
     {
         if (hkl == IntPtr.Zero) return;
         _lastTarget = hkl; _lastFg = fg; _lastSwitch = DateTime.UtcNow;
+        OwnTarget = hkl;
+        LayoutSwitched?.Invoke();
 
         string cls = Native.ClassName(fg);
         if (_loggedClasses.Add(cls)) Log.Write($"Перемикання мови у вікні «{cls}»");

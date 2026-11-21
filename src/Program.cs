@@ -3,7 +3,7 @@ namespace UaSwitch;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         Log.Write($"--- Старт UaSwitch {Application.ProductVersion}, Windows {Environment.OSVersion.Version}, " +
                   $"CLR {Environment.Version}, x64={Environment.Is64BitProcess}, шлях: {Application.ExecutablePath}");
@@ -14,6 +14,11 @@ internal static class Program
         try
         {
             using var mutex = new Mutex(true, @"Local\UaSwitch.SingleInstance", out bool first);
+            // Перезапуск після імпорту налаштувань: чекаємо, поки стара копія закриється
+            if (!first && args.Contains("/restart"))
+            {
+                try { first = mutex.WaitOne(10000); } catch (AbandonedMutexException) { first = true; }
+            }
             if (!first)
             {
                 Log.Write("Друга копія — вихід");

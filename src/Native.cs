@@ -139,4 +139,53 @@ internal static class Native
     }
 
     public static ushort LangId(IntPtr hkl) => (ushort)((long)hkl & 0xFFFF);
+
+    // ---------- Індикатор біля курсора ----------
+
+    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] public struct SIZE { public int cx, cy; }
+    [StructLayout(LayoutKind.Sequential, Pack = 1)] public struct BLENDFUNCTION { public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat; }
+    [StructLayout(LayoutKind.Sequential)] public struct CURSORINFO { public int cbSize, flags; public IntPtr hCursor; public POINT pt; }
+
+    [DllImport("user32.dll")] public static extern bool GetCursorInfo(ref CURSORINFO ci);
+    [DllImport("user32.dll")] public static extern IntPtr LoadCursor(IntPtr hInstance, IntPtr id);
+    [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hWnd, ref POINT p);
+    [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr hWnd, IntPtr hdc);
+    [DllImport("gdi32.dll")] public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+    [DllImport("gdi32.dll")] public static extern bool DeleteDC(IntPtr hdc);
+    [DllImport("gdi32.dll")] public static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);
+    [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr obj);
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize, IntPtr hdcSrc,
+        ref POINT pptSrc, int crKey, ref BLENDFUNCTION pblend, int dwFlags);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+
+    /// <summary>Стан Num Lock так, як його бачить активне вікно.</summary>
+    public static bool NumLockOn()
+    {
+        uint me = GetCurrentThreadId();
+        uint fg = GetWindowThreadProcessId(GetForegroundWindow(), out _);
+        bool attached = fg != 0 && fg != me && AttachThreadInput(me, fg, true);
+        try { return (GetKeyState(0x90) & 1) != 0; }
+        finally { if (attached) AttachThreadInput(me, fg, false); }
+    }
+    [DllImport("shell32.dll")] private static extern int SHQueryUserNotificationState(out int state);
+
+    /// <summary>
+    /// На весь екран працює гра чи інша програма (відео, презентація) — тоді Windows сама не показує сповіщень.
+    /// 2 = QUNS_BUSY (повноекранна програма), 3 = QUNS_RUNNING_D3D_FULL_SCREEN (гра).
+    /// </summary>
+    public static bool FullScreenAppRunning()
+    {
+        try { return SHQueryUserNotificationState(out int st) == 0 && (st == 2 || st == 3); }
+        catch { return false; }
+    }
+
+    // ---------- Вікно «Залипання клавіш» (5 разів Shift) ----------
+
+    [StructLayout(LayoutKind.Sequential)] public struct STICKYKEYS { public int cbSize; public uint dwFlags; }
+    [DllImport("user32.dll", SetLastError = true)] public static extern bool SystemParametersInfo(uint action, uint param, ref STICKYKEYS sk, uint winIni);
+    public const uint SPI_GETSTICKYKEYS = 0x003A, SPI_SETSTICKYKEYS = 0x003B, SKF_STICKYKEYSON = 0x1, SKF_HOTKEYACTIVE = 0x4;
 }

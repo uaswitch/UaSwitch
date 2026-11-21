@@ -16,7 +16,9 @@ internal sealed class TrayApp : ApplicationContext
     private readonly Converter _converter;
     private readonly NotifyIcon _tray;
     private readonly System.Windows.Forms.Timer _timer;
-    private readonly ToolStripMenuItem _miEnabled, _miAutoMode, _miExcludeApp;
+    private readonly ToolStripMenuItem _miEnabled, _miAutoMode, _miExcludeApp, _miAppLang;
+    private readonly LangIndicator _indicator;
+    private IntPtr _langHwnd;
     private readonly int _ownPid = Process.GetCurrentProcess().Id;
     private string _iconState = "";
     private Icon? _icon;
@@ -44,6 +46,12 @@ internal sealed class TrayApp : ApplicationContext
             Native.TrimMemory(); // після завантаження лишається багато тимчасових даних
         });
         _replace.Load();
+        if (!_settings.ReplaceDefaultsAdded)
+        {
+            _replace.AddDefaults();
+            _settings.ReplaceDefaultsAdded = true;
+            _settings.Save();
+        }
         Settings.MigrateAutostart();
         Settings.RefreshAutostart();
         Log.Write($"Запуск з «{Application.ExecutablePath}»");
@@ -63,15 +71,17 @@ internal sealed class TrayApp : ApplicationContext
             _monitor.SetCaps(Native.CapsLockOn()); // звіряємо Caps Lock з Windows на початку кожного слова
             if (_settings.SkipPasswords) PasswordGuard.Warmup(Native.GetForegroundWindow());
         };
-        _monitor.IsExcludedWindow = hwnd => _converter.IsExcludedApp(hwnd, out _);
-        _converter.Notify += (title, text) => { _pendingRelease = null; _tray.ShowBalloonTip(5000, title, text, ToolTipIcon.Info); };
+        _monitor.IsExcludedWindow = hwnd => _converter.IsExcludedApp(hwnd, out _) || GamePaused();
+        _monitor.OwnHotkeys = new uint[] { 'T', 'S', 'R' };
+        _converter.Notify += (title, text) => { _pendingRelease = null; _lastException = null; _tray.ShowBalloonTip(5000, title, text, ToolTipIcon.Info); };
         _hotkeys = new HotkeyWindow(id =>
         {
             if (id == 1) _converter.TransliterateSelection();
             else if (id == 2) _converter.AmountSelection();
+            else if (id == 3) _converter.CycleCase();
         });
-        _converter.ExceptionAdded += word => { _pendingRelease = null; _tray.ShowBalloonTip(6000, $"«{word}» більше не виправлятиметься",
-            "Слово додано у винятки, бо виправлення скасували Backspace. Прибрати: Налаштування → Слова-винятки.", ToolTipIcon.Info); };
+        _converter.ExceptionAdded += word => { _pendingRelease = null; _lastException = word; _lastExceptionAt = Environment.TickCount; _tray.ShowBalloonTip(6000, $"«{word}» більше не виправлятиметься",
+            "Виправлення скасували Backspace, тож слово додано у винятки.\nПросто передумали? Натисніть тут — і слово знову виправлятиметься.", ToolTipIcon.Info); };
         _monitor.UndoRequested += _converter.UndoAuto;
         _converter.Corrected += OnCorrected;
 
@@ -79,6 +89,13 @@ internal sealed class TrayApp : ApplicationContext
         _miAutoMode = Check("Автоматичне виправлення", () => _settings.AutoMode, v => _settings.AutoMode = v);
         _miExcludeApp = new ToolStripMenuItem("Не виправляти в цій програмі");
         _miExcludeApp.Click += (_, _) => ToggleExcludeLastApp();
+        _miAppLang = new ToolStripMenuItem("Мова для цієї програми");
+        foreach (var (code, text) in new[] { ("", "Не змінювати"), ("UA", "Українська"), ("EN", "English") })
+        {
+            var mi = new ToolStripMenuItem(text) { Tag = code };
+            mi.Click += (_, _) => SetAppLanguage(code);
+            _miAppLang.DropDownItems.Add(mi);
+        }
 
         var menu = new ContextMenuStrip();
         menu.Items.Add(new ToolStripMenuItem($"UaSwitch {Application.ProductVersion.Split('+')[0]}") { Enabled = false });
@@ -86,13 +103,16 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(_miEnabled);
         menu.Items.Add(_miAutoMode);
         menu.Items.Add(_miExcludeApp);
+        menu.Items.Add(_miAppLang);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Транслітерувати виділене  (Ctrl+Alt+T)", null, (_, _) => _converter.TransliterateSelection(_monitor.LastWindow));
         menu.Items.Add("Сума прописом  (Ctrl+Alt+S)", null, (_, _) => _converter.AmountSelection(_monitor.LastWindow));
+        menu.Items.Add("Змінити регістр  (Ctrl+Alt+R)", null, (_, _) => _converter.CycleCase(_monitor.LastWindow));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Налаштування…", null, (_, _) => ShowSettings());
         menu.Items.Add("Довідка", null, (_, _) => ShowHelp());
         menu.Items.Add("Перевірити оновлення", null, (_, _) => CheckForUpdates(manual: true));
+        menu.Items.Add("Повідомити про проблему…", null, (_, _) => ReportProblem());
         menu.Items.Add("Вихід", null, (_, _) => ExitThread());
         menu.Opening += (_, _) => RefreshMenu();
 
@@ -101,13 +121,23 @@ internal sealed class TrayApp : ApplicationContext
         _tray.BalloonTipClicked += (_, _) =>
         {
             if (_pendingRelease is { } r) { _pendingRelease = null; Updater.ShowNewVersion(r, _settings); }
+            else if (_lastException is { } word && Environment.TickCount - _lastExceptionAt < 8000)
+            {
+                _lastException = null;
+                _exceptions.Remove(word);
+                Log.Write("Слово прибрано з винятків (клік на сповіщення)");
+                _tray.ShowBalloonTip(3000, "UaSwitch", $"«{word}» знову виправлятиметься.", ToolTipIcon.Info);
+            }
         };
+
+        _indicator = new LangIndicator(_settings, _layouts, _monitor, _ => false);
+        Converter.LayoutSwitched += _indicator.Flash;
 
         Apply(save: false);
         _monitor.Start();
 
         _timer = new System.Windows.Forms.Timer { Interval = 150 };
-        _timer.Tick += (_, _) => { TrackForegroundApp(); UpdateIcon(); };
+        _timer.Tick += (_, _) => { TrackForegroundApp(); ApplyAppLanguage(); _monitor.RefreshExcluded(); UpdateIcon(); };
         _timer.Start();
 
         // Автоперевірка оновлень (якщо ввімкнена): через хвилину після старту, далі раз на добу
@@ -167,12 +197,17 @@ internal sealed class TrayApp : ApplicationContext
             _miExcludeApp.Text = "Не виправляти в цій програмі";
             _miExcludeApp.Enabled = false;
             _miExcludeApp.Checked = false;
+            _miAppLang.Enabled = false;
         }
         else
         {
             _miExcludeApp.Text = $"Не виправляти в «{_lastAppTitle}»";
             _miExcludeApp.Enabled = true;
             _miExcludeApp.Checked = _settings.IsExcluded(_lastApp);
+            _miAppLang.Enabled = true;
+            _miAppLang.Text = $"Мова для «{_lastAppTitle}»";
+            _settings.AppLanguageMap.TryGetValue(_lastApp, out var code);
+            foreach (ToolStripMenuItem mi in _miAppLang.DropDownItems) mi.Checked = (string)mi.Tag == (code ?? "");
         }
     }
 
@@ -185,6 +220,56 @@ internal sealed class TrayApp : ApplicationContext
         _tray.ShowBalloonTip(3000, "UaSwitch",
             now ? $"Автовиправлення вимкнено в «{_lastAppTitle}»." : $"Автовиправлення знову працює в «{_lastAppTitle}».",
             ToolTipIcon.Info);
+    }
+
+    private void SetAppLanguage(string code)
+    {
+        if (_lastApp == null) return;
+        var map = _settings.AppLanguageMap;
+        if (code.Length == 0) map.Remove(_lastApp); else map[_lastApp] = code;
+        _settings.AppLanguageMap = map;
+        _settings.Save();
+        _langHwnd = IntPtr.Zero; // застосувати одразу, коли людина повернеться в програму
+        _tray.ShowBalloonTip(3000, "UaSwitch", code.Length == 0
+            ? $"У «{_lastAppTitle}» мова більше не перемикається сама."
+            : $"У «{_lastAppTitle}» щоразу вмикатиметься {(code == "UA" ? "українська" : "англійська")}.", ToolTipIcon.Info);
+    }
+
+    /// <summary>Перейшли в інше вікно програми, для якої задано мову, — вмикаємо її (один раз на вікно).</summary>
+    private void ApplyAppLanguage()
+    {
+        var fg = Native.GetForegroundWindow();
+        if (fg == _langHwnd || fg == IntPtr.Zero || !_layouts.Ready || !_settings.Enabled) return;
+        _langHwnd = fg;
+        if (_settings.AppLanguages.Length == 0) return;
+        _converter.IsExcludedApp(fg, out var name);
+        if (!_settings.AppLanguageMap.TryGetValue(name, out var code)) return;
+        var target = code == "UA" ? _layouts.Ua : code == "EN" ? _layouts.En : IntPtr.Zero;
+        var cur = Native.ForegroundLayout(out _);
+        if (target != IntPtr.Zero && Native.LangId(cur) != Native.LangId(target))
+        {
+            Converter.SwitchLayout(fg, target);
+            Log.Write($"Мова для програми: {code}");
+        }
+    }
+
+    /// <summary>Гра чи інша програма на весь екран — повна пауза (якщо ввімкнено).</summary>
+    private bool GamePaused() => _settings.PauseInGames && Native.FullScreenAppRunning();
+
+    private void ReportProblem()
+    {
+        string layouts = "";
+        try
+        {
+            int n = Native.GetKeyboardLayoutList(0, null);
+            var list = new IntPtr[n];
+            Native.GetKeyboardLayoutList(n, list);
+            layouts = string.Join(", ", list.Select(h => $"0x{(long)h:X}"));
+        }
+        catch { }
+        string body = "Що сталося:\n\n\nЩо мало статися:\n\n\nУ якій програмі (Word, Chrome, Telegram…):\n\n" +
+                      $"---\nUaSwitch {Updater.Current}\nWindows {Environment.OSVersion.Version}\nРозкладки: {layouts}\n";
+        OpenUrl("https://github.com/uaswitch/UaSwitch/issues/new?body=" + Uri.EscapeDataString(body));
     }
 
     /// <summary>Запам'ятовує останню програму, з якою працював користувач (до кліку по іконці в треї).</summary>
@@ -217,6 +302,12 @@ internal sealed class TrayApp : ApplicationContext
         _settingsForm = new SettingsForm(_settings, _exceptions, _replace);
         _settingsForm.Changed += () => Apply(save: false); // кожна зміна зберігається й діє одразу
         _settingsForm.CheckUpdatesRequested += () => CheckForUpdates(manual: true);
+        _settingsForm.RestartRequested += () =>
+        {
+            Process.Start(new ProcessStartInfo(Application.ExecutablePath, "/restart") { UseShellExecute = false });
+            _settingsForm?.Close();
+            ExitThread();
+        };
         _settingsForm.FormClosed += (_, _) =>
         {
             _settingsForm = null;
@@ -236,7 +327,10 @@ internal sealed class TrayApp : ApplicationContext
         _monitor.CapsSwitch = _settings.CapsSwitch;
         _hotkeys?.Set(1, _settings.HotkeyTranslit && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, 'T');
         _hotkeys?.Set(2, _settings.HotkeyAmount && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, 'S');
+        _hotkeys?.Set(3, _settings.HotkeyCase && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, 'R');
         _monitor.ReplaceEnabled = _settings.AutoReplace;
+        _indicator?.Apply();
+        StickyKeys.Set(_settings.NoStickyPrompt && _settings.DoubleShift && _settings.Enabled);
         if (!_settings.Enabled) _monitor.ResetWord();
         if (save) _settings.Save();
         _iconState = "";
@@ -266,7 +360,8 @@ internal sealed class TrayApp : ApplicationContext
         string label = _layouts.IsUa(hkl) ? "UA" : lang == 0x09 ? "EN" : LangCode(hkl);
         bool flash = _flashUntil != 0 && Environment.TickCount - _flashUntil < 0;
         if (!flash) _flashUntil = 0;
-        bool excluded = fg != IntPtr.Zero && _converter.IsExcludedApp(fg, out _);
+        bool game = fg != IntPtr.Zero && GamePaused();
+        bool excluded = fg != IntPtr.Zero && (_converter.IsExcludedApp(fg, out _) || game);
         string state = label + (_settings.Enabled ? "+" : "-") + (flash ? "*" : "") + (excluded ? "x" : "") + _settings.IconStyle + (_lightTaskbar ? "L" : "D");
         if (state == _iconState) return;
         _iconState = state;
@@ -274,7 +369,7 @@ internal sealed class TrayApp : ApplicationContext
         var old = _icon;
         _icon = DrawIcon(label, _settings.Enabled, flash, excluded, _settings.IconStyle, _lightTaskbar);
         _tray.Icon = _icon;
-        _tray.Text = !_settings.Enabled ? "UaSwitch — вимкнено" : excluded ? $"UaSwitch — {label}, у цій програмі не виправляє" : $"UaSwitch — {label}";
+        _tray.Text = !_settings.Enabled ? "UaSwitch — вимкнено" : game ? $"UaSwitch — {label}, пауза: програма на весь екран" : excluded ? $"UaSwitch — {label}, у цій програмі не виправляє" : $"UaSwitch — {label}";
         if (old != null) { Native.DestroyIcon(old.Handle); old.Dispose(); }
     }
 
@@ -476,6 +571,8 @@ internal sealed class TrayApp : ApplicationContext
     }
 
     private Updater.Release? _pendingRelease;
+    private string? _lastException;
+    private int _lastExceptionAt;
 
     private static void OpenUrl(string url)
     {
@@ -497,12 +594,17 @@ internal sealed class TrayApp : ApplicationContext
         "   (натисніть ще раз, щоб повернути як було)\n" +
         "•  Виділіть текст, потім Shift+Pause або двічі Ctrl —\n" +
         "   виправити виділений фрагмент\n\n" +
+        "•  Ctrl+Alt+R — регістр слова чи виділеного: малі → ВЕЛИКІ → З великої\n\n" +
         "Автозаміна: скорочення + пробіл або Enter → ваш текст\n" +
-        "(список — у налаштуваннях, вкладка «Автозаміна»).\n" +
+        "(список — у налаштуваннях; готові .дата і .час).\n" +
+        "Мітка мови біля курсора й вигляд іконки — вкладка «Вигляд».\n" +
         "Caps Lock може перемикати мову (вкладка «Гарячі клавіші»).\n\n" +
         "Іконка: подвійний клік — налаштування, права кнопка — меню.\n" +
         "Меню → «Не виправляти в …» — вимкнути автоматику в програмі,\n" +
-        "з якою ви щойно працювали.\n\n" +
+        "з якою ви щойно працювали; «Мова для …» — завжди вмикати в ній\n" +
+        "українську чи англійську.\n" +
+        "У вікнах, запущених від імені адміністратора, програма не працює\n" +
+        "(обмеження Windows).\n\n" +
         "Набраний текст ніде не зберігається і нікуди не передається.\n" +
         "На диск записуються лише налаштування, винятки й автозаміна.\n\n" +
         "Розробник: Ruslan Pichkar · uaswitch.github.io/UaSwitch",
@@ -512,6 +614,8 @@ internal sealed class TrayApp : ApplicationContext
     {
         _timer.Stop();
         _monitor.Dispose();
+        StickyKeys.Set(false);
+        _indicator.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
         if (_icon != null) Native.DestroyIcon(_icon.Handle);
