@@ -64,6 +64,13 @@ internal sealed class Exceptions
         }
     }
 
+    /// <summary>Прибрати слово з винятків (наприклад, після кліку на сповіщення «більше не виправлятиметься»).</summary>
+    public void Remove(string word)
+    {
+        var all = GetAll();
+        if (all.Remove(Norm(word))) SetAll(all);
+    }
+
     public List<string> GetAll()
     {
         ReloadIfChanged();

@@ -55,6 +55,15 @@ internal sealed class Converter
             var w = _monitor.Word;
             if (w.Hwnd != fg || w.Keys.Count == 0) return;
             if (w.CommaInserted) RevertComma(w);
+            else if (w.CaseOnlyUndo && w.AutoCase == CaseFix.Sentence)
+            {
+                ApplyCaseFix(w.Keys, CaseFix.Sentence); // та сама операція повертає малу літеру
+                Toggle(w, fg, withPrev: false, switchLayout: false);
+                w.AutoCase = CaseFix.None;
+                w.CaseOnlyUndo = false;
+                w.ArmedVersion = -1;
+                w.NoAuto = true;
+            }
             else if (w.AutoConverted) RevertAuto(w, fg);
         }
     }
@@ -118,6 +127,7 @@ internal sealed class Converter
                     ApplyCaseFix(w.Keys, CaseFix.Sentence);
                     Toggle(w, fg, withPrev: false, switchLayout: false);
                     w.AutoCase = CaseFix.Sentence;
+                    w.CaseOnlyUndo = true; // Backspace прибере лише велику літеру, мова слова лишиться
                     w.ArmedVersion = w.Version;
                     corrected = true;
                 }
@@ -137,7 +147,8 @@ internal sealed class Converter
 
             string? curText = TextOf(w.Keys, cur), altText = TextOf(w.Keys, alt);
             if (curText == null || altText == null) return "не вдалося прочитати символи";
-            if (_exceptions.Blocks(curText)) return "";
+            // Слово-виняток: розкладку й регістр не чіпаємо, але велику літеру на початку речення, апостроф і кому — так
+            bool excepted = _exceptions.Blocks(curText);
             if (_settings.SkipPasswords && PasswordGuard.LooksLikeSecret(curText)) return ""; // «Qwe12rty», «p@ss»
             if (TrySpaceAfterPunct(w, curText, curIsUa)) { corrected = true; goto done; }
             if (HasInnerPunct(curText) && !altText.All(IsWordChar) || LooksLikeFileOrDomain(curText))
@@ -156,7 +167,8 @@ internal sealed class Converter
 
             // Регістр: випадковий Caps Lock (пРИВІТ) або дві великі на початку (ПРивіт)
             var fix = CaseFix.None;
-            if (_settings.FixCaps && _monitor.CapsOn && (IsCapsPattern(curText) || IsCapsPattern(altText)))
+            if (excepted) { }
+            else if (_settings.FixCaps && _monitor.CapsOn && (IsCapsPattern(curText) || IsCapsPattern(altText)))
                 fix = CaseFix.Caps;
             else if (_settings.FixTwoCaps && (IsTwoCapsPattern(curText) || IsTwoCapsPattern(altText)))
                 fix = CaseFix.TwoCaps;
@@ -173,7 +185,7 @@ internal sealed class Converter
             var (ctxUa, ctxEn) = AutoDetector.Context(w.Recent);
             // Людина щойно сама перемкнула мову — перше слово не перекладаємо (але регістр, апостроф, кому — так)
             bool manual = w.ManualLayout && _settings.RespectManual;
-            bool layout = !manual && _detector.ShouldConvert(curFixed, altFixed, curIsUa, ctxUa, ctxEn);
+            bool layout = !manual && !excepted && _detector.ShouldConvert(curFixed, altFixed, curIsUa, ctxUa, ctxEn);
             if (!layout && fix == CaseFix.TwoCaps && !_detector.IsKnownWord(curFixed, curIsUa)) fix = CaseFix.None;
             if (fix == CaseFix.None && WantsSentenceCap(w, layout ? altText : curText)) fix = CaseFix.Sentence;
             if (!layout && fix == CaseFix.None)

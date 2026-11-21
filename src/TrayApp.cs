@@ -73,15 +73,15 @@ internal sealed class TrayApp : ApplicationContext
         };
         _monitor.IsExcludedWindow = hwnd => _converter.IsExcludedApp(hwnd, out _) || GamePaused();
         _monitor.OwnHotkeys = new uint[] { 'T', 'S', 'R' };
-        _converter.Notify += (title, text) => { _pendingRelease = null; _tray.ShowBalloonTip(5000, title, text, ToolTipIcon.Info); };
+        _converter.Notify += (title, text) => { _pendingRelease = null; _lastException = null; _tray.ShowBalloonTip(5000, title, text, ToolTipIcon.Info); };
         _hotkeys = new HotkeyWindow(id =>
         {
             if (id == 1) _converter.TransliterateSelection();
             else if (id == 2) _converter.AmountSelection();
             else if (id == 3) _converter.CycleCase();
         });
-        _converter.ExceptionAdded += word => { _pendingRelease = null; _tray.ShowBalloonTip(6000, $"«{word}» більше не виправлятиметься",
-            "Слово додано у винятки, бо виправлення скасували Backspace. Прибрати: Налаштування → Слова-винятки.", ToolTipIcon.Info); };
+        _converter.ExceptionAdded += word => { _pendingRelease = null; _lastException = word; _lastExceptionAt = Environment.TickCount; _tray.ShowBalloonTip(6000, $"«{word}» більше не виправлятиметься",
+            "Виправлення скасували Backspace, тож слово додано у винятки.\nПросто передумали? Натисніть тут — і слово знову виправлятиметься.", ToolTipIcon.Info); };
         _monitor.UndoRequested += _converter.UndoAuto;
         _converter.Corrected += OnCorrected;
 
@@ -121,6 +121,13 @@ internal sealed class TrayApp : ApplicationContext
         _tray.BalloonTipClicked += (_, _) =>
         {
             if (_pendingRelease is { } r) { _pendingRelease = null; Updater.ShowNewVersion(r, _settings); }
+            else if (_lastException is { } word && Environment.TickCount - _lastExceptionAt < 8000)
+            {
+                _lastException = null;
+                _exceptions.Remove(word);
+                Log.Write("Слово прибрано з винятків (клік на сповіщення)");
+                _tray.ShowBalloonTip(3000, "UaSwitch", $"«{word}» знову виправлятиметься.", ToolTipIcon.Info);
+            }
         };
 
         _indicator = new LangIndicator(_settings, _layouts, _monitor, _ => false);
@@ -564,6 +571,8 @@ internal sealed class TrayApp : ApplicationContext
     }
 
     private Updater.Release? _pendingRelease;
+    private string? _lastException;
+    private int _lastExceptionAt;
 
     private static void OpenUrl(string url)
     {

@@ -44,10 +44,12 @@ internal sealed class WordBuffer
     public int ArmedVersion = -1;
     /// <summary>Перед цим словом людина сама перемкнула мову — розкладку слова не виправляємо.</summary>
     public bool ManualLayout;
+    /// <summary>Останнє автовиправлення — лише велика літера на початку речення (поверх уже виправленої мови).</summary>
+    public bool CaseOnlyUndo;
 
     public void Clear()
     {
-        Keys.Clear(); Trailing.Clear(); Prev = null; Recent.Clear(); UndoErase = 0; UndoText = null; UndoCommaAt = -1; ScreenText = null; NoAuto = CommaInserted = ManualLayout = false;
+        Keys.Clear(); Trailing.Clear(); Prev = null; Recent.Clear(); UndoErase = 0; UndoText = null; UndoCommaAt = -1; ScreenText = null; NoAuto = CommaInserted = ManualLayout = CaseOnlyUndo = false;
         AutoConverted = PrevConverted = AutoLayout = false; AutoCase = CaseFix.None; ArmedVersion = -1;
         Version++;
     }
