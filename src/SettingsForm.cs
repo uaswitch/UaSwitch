@@ -69,9 +69,9 @@ internal sealed class SettingsForm : Form
         _pause = Check(keys, "", _s.PauseHotkeys);
         KeyRow(keys, _pause, () => _s.PauseKey, v => _s.PauseKey = v, Settings.IsValidPauseKey, "Клавіша",
                "Підійдуть F1–F24, Pause, Scroll Lock, Insert, Menu — вони не друкують текст.",
-               n => $"{n} — останнє слово,  Shift+{n} — виділений текст");
-        _dShift = Check(keys, "Двічі Shift — виправити останнє слово", _s.DoubleShift);
-        _dCtrl = Check(keys, "Двічі Ctrl — виправити виділений текст", _s.DoubleCtrl);
+               n => $"{n} — виправити слово (або виділений текст)");
+        _dShift = Check(keys, "Двічі Shift — виправити слово (або виділений текст)", _s.DoubleShift);
+        _dCtrl = Check(keys, "Двічі Ctrl — те саме", _s.DoubleCtrl);
         _capsSwitch = Check(keys, "Caps Lock перемикає мову  (Shift+Caps — великі літери)", _s.CapsSwitch);
         _translit = Check(keys, "", _s.HotkeyTranslit);
         KeyRow(keys, _translit, () => _s.TranslitKey, v => _s.TranslitKey = v,
@@ -81,7 +81,7 @@ internal sealed class SettingsForm : Form
         KeyRow(keys, _amount, () => _s.AmountKey, v => _s.AmountKey = v,
                v => Settings.IsValidLetterKey(v) && v != _s.TranslitKey, "Літера", "Підійде літера A–Z або цифра, відмінна від іншої гарячої клавіші.",
                n => $"Ctrl+Alt+{n} — сума прописом  (1250,50 → Одна тисяча…)");
-        AddLabel(keys, "\nТранслітерація — за постановою КМУ №55 (як у паспорті).\n" +
+        AddLabel(keys, "\nЯкщо щойно набрано слово — виправляється воно,\nінакше виділений текст.\n\nТранслітерація — за постановою КМУ №55 (як у паспорті).\n" +
                        "Сума прописом — у гривнях і копійках, для актів і рахунків.\n" +
                        "Обидві працюють і з меню іконки.\n\n" +
                        "Повторне натискання повертає слово як було.\n" +

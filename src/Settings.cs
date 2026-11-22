@@ -7,7 +7,7 @@ internal sealed class Settings
 {
     public bool Enabled { get; set; } = true;
     public bool PauseHotkeys { get; set; } = true;
-    /// <summary>Клавіша «виправити слово» (Shift+клавіша — виділений текст). Віртуальний код; за замовчуванням Pause/Break.</summary>
+    /// <summary>Клавіша «виправити слово чи виділене». Віртуальний код; за замовчуванням Pause/Break.</summary>
     public int PauseKey { get; set; } = 0x13;
     /// <summary>Літера чи цифра для Ctrl+Alt+… (транслітерація, сума прописом).</summary>
     public int TranslitKey { get; set; } = 'T';

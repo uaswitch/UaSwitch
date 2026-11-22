@@ -54,8 +54,7 @@ internal sealed class TrayApp : ApplicationContext
         _monitor.ApostropheOnSpaceRequested += _converter.ApostropheOnSpace;
         _monitor.LayoutToggleRequested += _converter.ToggleLayout;
         _monitor.ReplaceOnEnterRequested += _converter.ReplaceOnEnter;
-        _monitor.LastWordRequested += _converter.ConvertLastWord;
-        _monitor.SelectionRequested += _converter.ConvertSelection;
+        _monitor.ConvertRequested += _converter.ConvertSmart;
         _monitor.AutoCheckRequested += _converter.AutoCheck;
         _monitor.EarlyCheckRequested += _converter.EarlyCheck;
         _monitor.WordStarted += () =>
@@ -499,10 +498,9 @@ internal sealed class TrayApp : ApplicationContext
         "Caps Lock), ПРивіт → Привіт, велика літера після крапки.\n" +
         "Апостроф: мясо → м'ясо, обєкт → об'єкт.\n\n" +
         "Вручну:\n" +
-        $"•  {key} або двічі Shift — виправити останнє слово\n" +
-        "   (натисніть ще раз, щоб повернути як було)\n" +
-        $"•  Виділіть текст, потім Shift+{key} або двічі Ctrl —\n" +
-        "   виправити виділений фрагмент\n\n" +
+        $"•  {key}, двічі Shift або двічі Ctrl — виправити щойно\n" +
+        "   набране слово, а якщо виділено текст — його\n" +
+        "   (натисніть ще раз, щоб повернути слово як було)\n\n" +
         "Автозаміна: скорочення + пробіл або Enter → ваш текст\n" +
         "(список — у налаштуваннях, вкладка «Автозаміна»).\n" +
         "Caps Lock може перемикати мову (вкладка «Гарячі клавіші»).\n\n" +

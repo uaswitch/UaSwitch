@@ -77,8 +77,8 @@ internal sealed class KeyboardMonitor : IDisposable
     /// <summary>Чи є таке скорочення автозаміни (перевіряється прямо в хуку, щоб не затримувати кожен Enter).</summary>
     public Func<string, bool>? IsAbbrev;
 
-    public event Action? LastWordRequested;
-    public event Action? SelectionRequested;
+    /// <summary>Ручне виправлення: щойно набране слово або, якщо його нема, виділений текст.</summary>
+    public event Action? ConvertRequested;
     public event Action<int>? AutoCheckRequested;
     public event Action<int>? EarlyCheckRequested;
     /// <summary>Почалося нове слово — час заздалегідь з'ясувати, чи це поле пароля.</summary>
@@ -233,9 +233,15 @@ internal sealed class KeyboardMonitor : IDisposable
             bool down = msg is Native.WM_KEYDOWN or Native.WM_SYSKEYDOWN;
             bool up = msg is Native.WM_KEYUP or Native.WM_SYSKEYUP;
 
-            // Власний синтетичний ввід (і будь-який інший інжектований) не записуємо
-            if ((k.flags & Native.LLKHF_INJECTED) != 0 || k.dwExtraInfo == Native.OwnInputMarker)
+            // Власний синтетичний ввід (і будь-який інший інжектований) не записуємо.
+            // Виняток — обрана клавіша виправлення: утиліти перепризначення клавіш (для клавіатур без Pause) шлють її як інжектовану.
+            bool foreign = k.dwExtraInfo != Native.OwnInputMarker && (k.flags & Native.LLKHF_INJECTED) != 0;
+            if (k.dwExtraInfo == Native.OwnInputMarker || foreign && k.vkCode != PauseKey)
+            {
+                // Навігація з такої утиліти (Home, стрілки тощо) теж означає «курсор пішов»: слово більше не «щойно набране»
+                if (foreign && down && k.vkCode is >= 0x21 and <= 0x28 or 0x2E) ResetWord();
                 return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
+            }
 
             CheckForeground();
 
@@ -290,9 +296,10 @@ internal sealed class KeyboardMonitor : IDisposable
 
             if (!Enabled || HotkeyCapture) return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
 
+            // Клавіша й Shift+клавіша — та сама дія (Shift+Insert теж не доходить до програми)
             if (k.vkCode == PauseKey && PauseHotkeys && !_ctrl && !_alt && !_win)
             {
-                Post(_shift ? SelectionRequested : LastWordRequested);
+                Post(ConvertRequested);
                 return (IntPtr)1; // поглинаємо клавішу
             }
 
@@ -429,8 +436,7 @@ internal sealed class KeyboardMonitor : IDisposable
         if (_lastTap == mod && now - _lastTapAt <= DoubleTapMs)
         {
             _lastTap = Mod.None;
-            if (mod == Mod.Shift && DoubleShift) Post(LastWordRequested);
-            else if (mod == Mod.Ctrl && DoubleCtrl) Post(SelectionRequested);
+            if (mod == Mod.Shift && DoubleShift || mod == Mod.Ctrl && DoubleCtrl) Post(ConvertRequested);
         }
         else
         {
@@ -450,6 +456,8 @@ internal sealed class KeyboardMonitor : IDisposable
         _ => Mod.None
     };
 
+    /// <summary>Shift фізично натиснуто (за справжніми подіями клавіатури, без нашого штучного вводу).</summary>
+    public bool ShiftHeld => _shift;
     private bool IsModDown(Mod m) => m switch { Mod.Shift => _shift, Mod.Ctrl => _ctrl, Mod.Alt => _alt, Mod.Win => _win, _ => false };
 
     private void SetModDown(Mod m, bool v)
