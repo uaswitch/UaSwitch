@@ -7,6 +7,11 @@ internal sealed class Settings
 {
     public bool Enabled { get; set; } = true;
     public bool PauseHotkeys { get; set; } = true;
+    /// <summary>Клавіша «виправити слово чи виділене». Віртуальний код; за замовчуванням Pause/Break.</summary>
+    public int PauseKey { get; set; } = 0x13;
+    /// <summary>Літера чи цифра для Ctrl+Alt+… (транслітерація, сума прописом).</summary>
+    public int TranslitKey { get; set; } = 'T';
+    public int AmountKey { get; set; } = 'S';
     public bool DoubleShift { get; set; } = true;
     public bool DoubleCtrl { get; set; } = true;
     public bool AutoMode { get; set; } = true;
@@ -40,6 +45,17 @@ internal sealed class Settings
     public bool Flash { get; set; } = true;
     /// <summary>Програми (імена процесів без .exe), де автовиправлення вимкнено.</summary>
     public string ExcludedApps { get; set; } = "mstsc,vmconnect,KeePass,KeePassXC,1Password,Bitwarden,cmd,powershell,pwsh,WindowsTerminal";
+    /// <summary>Клавіші, які можна віддати під «виправити слово»: не друкують текст. F1–F24, Pause, Scroll Lock, Insert, Menu.</summary>
+    public static bool IsValidPauseKey(int vk) =>
+        vk is >= 0x70 and <= 0x87 or 0x13 or 0x91 or 0x2D or 0x5D;
+
+    /// <summary>Літера A–Z або цифра 0–9 (для Ctrl+Alt+…).</summary>
+    public static bool IsValidLetterKey(int vk) => vk is >= 'A' and <= 'Z' or >= '0' and <= '9';
+
+    /// <summary>Людська назва клавіші: «Pause», «F9», «T».</summary>
+    public static string KeyName(int vk) => vk is >= 'A' and <= 'Z' or >= '0' and <= '9' ? ((char)vk).ToString()
+        : vk == 0x13 ? "Pause" : vk == 0x91 ? "Scroll Lock" : vk == 0x5D ? "Menu" : ((Keys)vk).ToString();
+
     public bool IsExcluded(string app) => ExcludedAppList.Contains(app, StringComparer.OrdinalIgnoreCase);
 
     public void SetExcluded(string app, bool excluded)
@@ -71,6 +87,9 @@ internal sealed class Settings
                 {
                     case nameof(Enabled): s.Enabled = val; break;
                     case nameof(PauseHotkeys): s.PauseHotkeys = val; break;
+                    case nameof(PauseKey): if (int.TryParse(raw, out int pk) && IsValidPauseKey(pk)) s.PauseKey = pk; break;
+                    case nameof(TranslitKey): if (int.TryParse(raw, out int tk) && IsValidLetterKey(tk)) s.TranslitKey = tk; break;
+                    case nameof(AmountKey): if (int.TryParse(raw, out int ak) && IsValidLetterKey(ak)) s.AmountKey = ak; break;
                     case nameof(DoubleShift): s.DoubleShift = val; break;
                     case nameof(DoubleCtrl): s.DoubleCtrl = val; break;
                     case nameof(AutoMode): s.AutoMode = val; break;
@@ -113,6 +132,9 @@ internal sealed class Settings
             {
                 $"{nameof(Enabled)}={Enabled.ToString().ToLower()}",
                 $"{nameof(PauseHotkeys)}={PauseHotkeys.ToString().ToLower()}",
+                $"{nameof(PauseKey)}={PauseKey}",
+                $"{nameof(TranslitKey)}={TranslitKey}",
+                $"{nameof(AmountKey)}={AmountKey}",
                 $"{nameof(DoubleShift)}={DoubleShift.ToString().ToLower()}",
                 $"{nameof(DoubleCtrl)}={DoubleCtrl.ToString().ToLower()}",
                 $"{nameof(AutoMode)}={AutoMode.ToString().ToLower()}",
