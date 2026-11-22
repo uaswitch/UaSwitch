@@ -65,6 +65,9 @@ internal sealed class KeyboardMonitor : IDisposable
 
     public volatile bool Enabled = true;
     public volatile bool PauseHotkeys = true;
+    public volatile int PauseKey = (int)VK_PAUSE;
+    /// <summary>Вікно налаштувань чекає натискання клавіші для призначення — хук нічого не поглинає.</summary>
+    public volatile bool HotkeyCapture;
     public volatile bool DoubleShift = true;
     public volatile bool DoubleCtrl = true;
 
@@ -285,9 +288,9 @@ internal sealed class KeyboardMonitor : IDisposable
                 return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
             }
 
-            if (!Enabled) return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
+            if (!Enabled || HotkeyCapture) return Native.CallNextHookEx(_kbHook, nCode, wParam, lParam);
 
-            if (k.vkCode == VK_PAUSE && PauseHotkeys && !_ctrl && !_alt && !_win)
+            if (k.vkCode == PauseKey && PauseHotkeys && !_ctrl && !_alt && !_win)
             {
                 Post(_shift ? SelectionRequested : LastWordRequested);
                 return (IntPtr)1; // поглинаємо клавішу
