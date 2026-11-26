@@ -125,6 +125,7 @@ kbd{border:1px solid var(--line);border-bottom-width:2px}
 .tray-styles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .tray-styles span{display:block;color:var(--muted);font-size:14px;margin-top:6px}
 @media (max-width:860px){.tray-styles{grid-template-columns:1fr 1fr}}
+.cursor-tags{display:flex;gap:18px;justify-content:center}
 .shot-tray figcaption{color:var(--muted);font-size:14px;margin-top:8px}
 .gallery{display:flex;flex-direction:column;align-items:center;gap:14px}
 .seg{display:inline-flex;background:var(--code);border-radius:10px;padding:4px;gap:4px}
@@ -206,6 +207,10 @@ footer a{color:inherit}
       <div class="card"><div class="ico">₴</div><h3>Сума прописом</h3><p>Виділіть «1250,50» → <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> → «Одна тисяча двісті п'ятдесят гривень 50 копійок».</p></div>
       <div class="card"><div class="ico">🌐</div><h3>Є ще російська розкладка?</h3><p>Англійське слово, набране нею, теж виправиться: <code>руддщ</code> → <code>hello</code>. Звичайний текст цією мовою не чіпається.</p></div>
       <div class="card"><div class="ico">🇺🇦</div><h3>Іконка на смак</h3><p>Текст UA/EN, прапори, однотонна чи кольорова крапка. На паузі сіріє, у виключеннях — перекреслена.</p></div>
+      <div class="card"><div class="ico">👆</div><h3>Мова біля курсора</h3><p>Перемкнули мову — поруч із курсором на мить з'являється UA чи EN (і ⇪ при Caps Lock). Видно ще до набору.</p></div>
+      <div class="card"><div class="ico">Aa</div><h3>Регістр по колу</h3><p><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> після слова: привіт → ПРИВІТ → Привіт. Працює й з виділеним текстом.</p></div>
+      <div class="card"><div class="ico">💬</div><h3>Своя мова для програми</h3><p>Telegram — завжди українська, редактор коду — англійська. Перемикається сама, щойно переходите у вікно.</p></div>
+      <div class="card"><div class="ico">🎮</div><h3>Не заважає в іграх</h3><p>Гра чи відео на весь екран — пауза. Подвійний Shift не гальмує гру й не викликає «Залипання клавіш».</p></div>
     </div>
   </section>
 
@@ -259,7 +264,7 @@ footer a{color:inherit}
         <div><img src="tray-style-mono.png" alt="Іконка UaSwitch у вигляді «Однотонна» поруч з індикатором «УКР»" width="190" height="56" loading="lazy"><span>Однотонна</span></div>
         <div><img src="tray-style-dot.png" alt="Іконка UaSwitch у вигляді «Крапка» поруч з індикатором «УКР»" width="190" height="56" loading="lazy"><span>Крапка</span></div>
       </div>
-      <figcaption>Так виглядає на панелі задач Windows 11 поруч зі стандартним індикатором мови. Вигляд обирається в Налаштуваннях → Додатково.</figcaption>
+      <figcaption>Так виглядає на панелі задач Windows 11 поруч зі стандартним індикатором мови. Вигляд обирається в Налаштуваннях → Вигляд.</figcaption>
     </figure>
     <div class="states">
       <div class="state"><img src="tray-ua.png" alt=""><h3>Українська</h3><p>Синьо-жовта іконка</p></div>
@@ -268,6 +273,10 @@ footer a{color:inherit}
       <div class="state"><img src="tray-off.png" alt=""><h3>Вимкнено</h3><p>Сіра іконка</p></div>
     </div>
     <p class="note">На паузі іконка сіріє, у програмі-виключенні — перекреслена червоним.</p>
+    <figure class="shot-tray">
+      <div class="cursor-tags"><img src="cursor-ua.png" alt="Мітка UA біля курсора" width="84" height="60" loading="lazy"><img src="cursor-en.png" alt="Мітка EN біля курсора" width="84" height="60" loading="lazy"></div>
+      <figcaption>Мітка мови біля курсора: з'являється на мить, коли мова чи Caps Lock змінилися. Можна показувати завжди або лише над полями для тексту (Налаштування → Вигляд).</figcaption>
+    </figure>
   </section>
 
   <section>
@@ -283,6 +292,7 @@ footer a{color:inherit}
           <button role="tab" aria-selected="false" data-img="screen-hotkeys.png" data-alt="Вкладка «Гарячі клавіші»">Гарячі клавіші</button>
           <button role="tab" aria-selected="false" data-img="screen-apps.png" data-alt="Вкладка «Програми»">Програми</button>
           <button role="tab" aria-selected="false" data-img="screen-replace.png" data-alt="Вкладка «Автозаміна»">Автозаміна</button>
+          <button role="tab" aria-selected="false" data-img="screen-look.png" data-alt="Вкладка «Вигляд»">Вигляд</button>
           <button role="tab" aria-selected="false" data-img="screen-extra.png" data-alt="Вкладка «Додатково»">Додатково</button>
           <button role="tab" aria-selected="false" data-img="screen-menu.png" data-alt="Меню іконки">Меню іконки</button>
         </div>
