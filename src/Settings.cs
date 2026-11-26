@@ -36,6 +36,38 @@ internal sealed class Settings
     public bool CheckUpdates { get; set; }
     public string SkippedVersion { get; set; } = "";
     public string LastUpdateCheck { get; set; } = "";
+    /// <summary>Мітка мови біля курсора: off, switch (на мить після перемикання), text (над полями вводу), always.</summary>
+    public string IndicatorMode { get; set; } = "switch";
+    public bool IndicatorBig { get; set; }
+    public bool IndicatorNumLock { get; set; }
+    public bool IndicatorHideFullScreen { get; set; } = true;
+    /// <summary>Перше слово після ручного перемикання мови не перекладати.</summary>
+    public bool RespectManual { get; set; } = true;
+    /// <summary>Повна пауза, коли гра чи інша програма працює на весь екран.</summary>
+    public bool PauseInGames { get; set; } = true;
+    /// <summary>Не показувати вікно «Залипання клавіш» після кількох подвійних Shift.</summary>
+    public bool NoStickyPrompt { get; set; } = true;
+    public bool HotkeyCase { get; set; } = true;
+    /// <summary>Мова для програм: «Telegram=UA;Code=EN».</summary>
+    public string AppLanguages { get; set; } = "";
+    /// <summary>Готові скорочення .дата і .час уже додано (один раз, щоб не повертати видалені).</summary>
+    public bool ReplaceDefaultsAdded { get; set; }
+
+    public Dictionary<string, string> AppLanguageMap
+    {
+        get
+        {
+            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var part in AppLanguages.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int eq = part.IndexOf('=');
+                if (eq > 0) d[part.Substring(0, eq).Trim()] = part.Substring(eq + 1).Trim().ToUpperInvariant();
+            }
+            return d;
+        }
+        set => AppLanguages = string.Join(";", value.Select(kv => kv.Key + "=" + kv.Value));
+    }
+
     public bool Sound { get; set; } = true;
     public bool Flash { get; set; } = true;
     /// <summary>Програми (імена процесів без .exe), де автовиправлення вимкнено.</summary>
@@ -95,6 +127,16 @@ internal sealed class Settings
                     case nameof(SkippedVersion): s.SkippedVersion = raw; break;
                     case nameof(LastUpdateCheck): s.LastUpdateCheck = raw; break;
                     case nameof(Sound): s.Sound = val; break;
+                    case nameof(IndicatorMode): s.IndicatorMode = raw; break;
+                    case nameof(IndicatorBig): s.IndicatorBig = val; break;
+                    case nameof(IndicatorNumLock): s.IndicatorNumLock = val; break;
+                    case nameof(IndicatorHideFullScreen): s.IndicatorHideFullScreen = val; break;
+                    case nameof(RespectManual): s.RespectManual = val; break;
+                    case nameof(PauseInGames): s.PauseInGames = val; break;
+                    case nameof(NoStickyPrompt): s.NoStickyPrompt = val; break;
+                    case nameof(HotkeyCase): s.HotkeyCase = val; break;
+                    case nameof(AppLanguages): s.AppLanguages = raw; break;
+                    case nameof(ReplaceDefaultsAdded): s.ReplaceDefaultsAdded = val; break;
                     case nameof(Flash): s.Flash = val; break;
                     case nameof(ExcludedApps): s.ExcludedApps = raw; break;
                 }
@@ -137,12 +179,61 @@ internal sealed class Settings
                 $"{nameof(SkippedVersion)}={SkippedVersion}",
                 $"{nameof(LastUpdateCheck)}={LastUpdateCheck}",
                 $"{nameof(Sound)}={Sound.ToString().ToLower()}",
+                $"{nameof(IndicatorMode)}={IndicatorMode}",
+                $"{nameof(IndicatorBig)}={IndicatorBig.ToString().ToLower()}",
+                $"{nameof(IndicatorNumLock)}={IndicatorNumLock.ToString().ToLower()}",
+                $"{nameof(IndicatorHideFullScreen)}={IndicatorHideFullScreen.ToString().ToLower()}",
+                $"{nameof(RespectManual)}={RespectManual.ToString().ToLower()}",
+                $"{nameof(PauseInGames)}={PauseInGames.ToString().ToLower()}",
+                $"{nameof(NoStickyPrompt)}={NoStickyPrompt.ToString().ToLower()}",
+                $"{nameof(HotkeyCase)}={HotkeyCase.ToString().ToLower()}",
+                $"{nameof(ReplaceDefaultsAdded)}={ReplaceDefaultsAdded.ToString().ToLower()}",
+                "# Мова для програм (процес=UA чи EN, через крапку з комою):",
+                $"{nameof(AppLanguages)}={AppLanguages}",
                 $"{nameof(Flash)}={Flash.ToString().ToLower()}",
                 "# Програми без автовиправлення (імена процесів через кому):",
                 $"{nameof(ExcludedApps)}={ExcludedApps}",
             });
         }
         catch { }
+    }
+
+    // ---------- Експорт / імпорт ----------
+
+    private static readonly string[] DataFiles = { "settings.ini", "exceptions.txt", "autoreplace.txt" };
+    private const string Marker = "@@@ ";
+
+    /// <summary>Налаштування, слова-винятки й автозаміна — в один текстовий файл.</summary>
+    public static void Export(string path)
+    {
+        var lines = new List<string> { "# UaSwitch — експорт налаштувань " + DateTime.Now.ToString("dd.MM.yyyy HH:mm") };
+        foreach (var f in DataFiles)
+        {
+            string full = Path.Combine(Dir, f);
+            lines.Add(Marker + f);
+            if (File.Exists(full)) lines.AddRange(File.ReadAllLines(full));
+        }
+        File.WriteAllLines(path, lines, new System.Text.UTF8Encoding(true));
+    }
+
+    /// <summary>Записує файли з експорту. Повертає кількість відновлених файлів.</summary>
+    public static int Import(string path)
+    {
+        var parts = new Dictionary<string, List<string>>();
+        List<string>? cur = null;
+        foreach (var line in File.ReadAllLines(path))
+        {
+            if (line.StartsWith(Marker))
+            {
+                string name = line.Substring(Marker.Length).Trim();
+                cur = DataFiles.Contains(name) ? (parts[name] = new List<string>()) : null;
+            }
+            else cur?.Add(line);
+        }
+        if (parts.Count == 0) throw new InvalidDataException("Це не файл експорту UaSwitch.");
+        Directory.CreateDirectory(Dir);
+        foreach (var kv in parts) File.WriteAllLines(Path.Combine(Dir, kv.Key), kv.Value);
+        return parts.Count;
     }
 
     // ---------- Автозапуск ----------

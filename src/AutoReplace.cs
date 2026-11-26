@@ -32,6 +32,16 @@ internal sealed class AutoReplace
         }
     }
 
+    /// <summary>Готові скорочення .дата і .час (додаються один раз; видалені людиною не повертаються).</summary>
+    public void AddDefaults()
+    {
+        var all = GetAll();
+        bool changed = false;
+        foreach (var (k, v) in new[] { (".дата", "{дата}"), (".час", "{час}") })
+            if (!all.Any(kv => kv.Key.Equals(k, StringComparison.OrdinalIgnoreCase))) { all.Add(new(k, v)); changed = true; }
+        if (changed) SetAll(all);
+    }
+
     public List<KeyValuePair<string, string>> GetAll()
     {
         lock (_sync) return _map.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).ToList();

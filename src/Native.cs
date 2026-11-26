@@ -96,9 +96,54 @@ internal static class Native
     public static IntPtr ForegroundLayout(out IntPtr hwnd)
     {
         hwnd = GetForegroundWindow();
-        uint tid = GetWindowThreadProcessId(hwnd, out _);
-        return GetKeyboardLayout(tid);
+        return GetKeyboardLayout(InputThread(hwnd));
     }
+
+    /// <summary>
+    /// Потік, який насправді отримує набір. У Teams, новому Блокноті, браузерах на WebView2 і програмах з магазину
+    /// поле вводу живе в дочірньому вікні іншого потоку (чи процесу), і мова змінюється саме там,
+    /// а головне вікно лишається зі старою — через це програма бачила «EN», коли вже було «УКР».
+    /// </summary>
+    public static uint InputThread(IntPtr fg)
+    {
+        uint tid = GetWindowThreadProcessId(fg, out _);
+        if (tid == 0) return 0;
+        var info = new GUITHREADINFO { cbSize = Marshal.SizeOf<GUITHREADINFO>() };
+        if (GetGUIThreadInfo(tid, ref info) && info.hwndFocus != IntPtr.Zero)
+        {
+            uint ft = GetWindowThreadProcessId(info.hwndFocus, out _);
+            if (ft != 0)
+            {
+                if (ft != tid) LogOnce(fg, info.hwndFocus, tid, ft);
+                return ft;
+            }
+        }
+        // Програми з магазину: рамка ApplicationFrameWindow, а вміст — у дочірньому CoreWindow
+        if (ClassName(fg) == "ApplicationFrameWindow")
+        {
+            var core = FindWindowEx(fg, IntPtr.Zero, "Windows.UI.Core.CoreWindow", null);
+            if (core != IntPtr.Zero)
+            {
+                uint ct = GetWindowThreadProcessId(core, out _);
+                if (ct != 0) return ct;
+            }
+        }
+        return tid;
+    }
+
+    private static readonly HashSet<string> _logged = new();
+
+    /// <summary>Для журналу: у якій програмі мова береться з іншого потоку (раз на клас вікна).</summary>
+    private static void LogOnce(IntPtr fg, IntPtr focus, uint tid, uint ft)
+    {
+        string key = ClassName(fg) + "/" + ClassName(focus);
+        lock (_logged) if (!_logged.Add(key)) return;
+        long a = (long)GetKeyboardLayout(tid) & 0xFFFF, b = (long)GetKeyboardLayout(ft) & 0xFFFF;
+        Log.Write($"Мова з поля вводу: {key}, вікно 0x{a:X4}, поле 0x{b:X4}");
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string? cls, string? title);
 
     /// <summary>Вікно з фокусом вводу (для запиту зміни мови).</summary>
     public static IntPtr FocusWindow(IntPtr fg)
@@ -139,4 +184,53 @@ internal static class Native
     }
 
     public static ushort LangId(IntPtr hkl) => (ushort)((long)hkl & 0xFFFF);
+
+    // ---------- Індикатор біля курсора ----------
+
+    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] public struct SIZE { public int cx, cy; }
+    [StructLayout(LayoutKind.Sequential, Pack = 1)] public struct BLENDFUNCTION { public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat; }
+    [StructLayout(LayoutKind.Sequential)] public struct CURSORINFO { public int cbSize, flags; public IntPtr hCursor; public POINT pt; }
+
+    [DllImport("user32.dll")] public static extern bool GetCursorInfo(ref CURSORINFO ci);
+    [DllImport("user32.dll")] public static extern IntPtr LoadCursor(IntPtr hInstance, IntPtr id);
+    [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hWnd, ref POINT p);
+    [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr hWnd, IntPtr hdc);
+    [DllImport("gdi32.dll")] public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+    [DllImport("gdi32.dll")] public static extern bool DeleteDC(IntPtr hdc);
+    [DllImport("gdi32.dll")] public static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);
+    [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr obj);
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize, IntPtr hdcSrc,
+        ref POINT pptSrc, int crKey, ref BLENDFUNCTION pblend, int dwFlags);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+
+    /// <summary>Стан Num Lock так, як його бачить активне вікно.</summary>
+    public static bool NumLockOn()
+    {
+        uint me = GetCurrentThreadId();
+        uint fg = GetWindowThreadProcessId(GetForegroundWindow(), out _);
+        bool attached = fg != 0 && fg != me && AttachThreadInput(me, fg, true);
+        try { return (GetKeyState(0x90) & 1) != 0; }
+        finally { if (attached) AttachThreadInput(me, fg, false); }
+    }
+    [DllImport("shell32.dll")] private static extern int SHQueryUserNotificationState(out int state);
+
+    /// <summary>
+    /// На весь екран працює гра чи інша програма (відео, презентація) — тоді Windows сама не показує сповіщень.
+    /// 2 = QUNS_BUSY (повноекранна програма), 3 = QUNS_RUNNING_D3D_FULL_SCREEN (гра).
+    /// </summary>
+    public static bool FullScreenAppRunning()
+    {
+        try { return SHQueryUserNotificationState(out int st) == 0 && (st == 2 || st == 3); }
+        catch { return false; }
+    }
+
+    // ---------- Вікно «Залипання клавіш» (5 разів Shift) ----------
+
+    [StructLayout(LayoutKind.Sequential)] public struct STICKYKEYS { public int cbSize; public uint dwFlags; }
+    [DllImport("user32.dll", SetLastError = true)] public static extern bool SystemParametersInfo(uint action, uint param, ref STICKYKEYS sk, uint winIni);
+    public const uint SPI_GETSTICKYKEYS = 0x003A, SPI_SETSTICKYKEYS = 0x003B, SKF_STICKYKEYSON = 0x1, SKF_HOTKEYACTIVE = 0x4;
 }
