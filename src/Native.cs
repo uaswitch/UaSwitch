@@ -96,9 +96,54 @@ internal static class Native
     public static IntPtr ForegroundLayout(out IntPtr hwnd)
     {
         hwnd = GetForegroundWindow();
-        uint tid = GetWindowThreadProcessId(hwnd, out _);
-        return GetKeyboardLayout(tid);
+        return GetKeyboardLayout(InputThread(hwnd));
     }
+
+    /// <summary>
+    /// Потік, який насправді отримує набір. У Teams, новому Блокноті, браузерах на WebView2 і програмах з магазину
+    /// поле вводу живе в дочірньому вікні іншого потоку (чи процесу), і мова змінюється саме там,
+    /// а головне вікно лишається зі старою — через це програма бачила «EN», коли вже було «УКР».
+    /// </summary>
+    public static uint InputThread(IntPtr fg)
+    {
+        uint tid = GetWindowThreadProcessId(fg, out _);
+        if (tid == 0) return 0;
+        var info = new GUITHREADINFO { cbSize = Marshal.SizeOf<GUITHREADINFO>() };
+        if (GetGUIThreadInfo(tid, ref info) && info.hwndFocus != IntPtr.Zero)
+        {
+            uint ft = GetWindowThreadProcessId(info.hwndFocus, out _);
+            if (ft != 0)
+            {
+                if (ft != tid) LogOnce(fg, info.hwndFocus, tid, ft);
+                return ft;
+            }
+        }
+        // Програми з магазину: рамка ApplicationFrameWindow, а вміст — у дочірньому CoreWindow
+        if (ClassName(fg) == "ApplicationFrameWindow")
+        {
+            var core = FindWindowEx(fg, IntPtr.Zero, "Windows.UI.Core.CoreWindow", null);
+            if (core != IntPtr.Zero)
+            {
+                uint ct = GetWindowThreadProcessId(core, out _);
+                if (ct != 0) return ct;
+            }
+        }
+        return tid;
+    }
+
+    private static readonly HashSet<string> _logged = new();
+
+    /// <summary>Для журналу: у якій програмі мова береться з іншого потоку (раз на клас вікна).</summary>
+    private static void LogOnce(IntPtr fg, IntPtr focus, uint tid, uint ft)
+    {
+        string key = ClassName(fg) + "/" + ClassName(focus);
+        lock (_logged) if (!_logged.Add(key)) return;
+        long a = (long)GetKeyboardLayout(tid) & 0xFFFF, b = (long)GetKeyboardLayout(ft) & 0xFFFF;
+        Log.Write($"Мова з поля вводу: {key}, вікно 0x{a:X4}, поле 0x{b:X4}");
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string? cls, string? title);
 
     /// <summary>Вікно з фокусом вводу (для запиту зміни мови).</summary>
     public static IntPtr FocusWindow(IntPtr fg)
