@@ -163,6 +163,12 @@ Klavko — сильний український проєкт для macOS з б
 
 Права кнопка на іконці → «Повідомити про проблему…» — відкриється звернення на GitHub, де вже вписані версія програми, Windows і розкладки. Або створіть його в розділі [Issues](../../issues): що набирали, що вийшло і в якій програмі.
 
+## Подяки
+
+- [Language Cursor](https://github.com/SanekxArcs/cursor-lang) від [SanekxArcs](https://github.com/SanekxArcs) — ідея мітки мови біля курсора (UaSwitch 0.11).
+- [rashevskyv](https://github.com/rashevskyv) — клавіші на вибір замість Pause і одна дія для слова й виділеного (UaSwitch 0.12).
+- Усім, хто пише відгуки в Threads і на GitHub, — більшість функцій з'явилися саме з них.
+
 ## Ліцензії
 
 Код програми — ліцензія MIT (файл `LICENSE`).

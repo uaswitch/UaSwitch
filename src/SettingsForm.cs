@@ -126,7 +126,7 @@ internal sealed class SettingsForm : Form
         _indBig = Check(look, "Більша мітка", _s.IndicatorBig);
         _indNum = Check(look, "Показувати # , коли ввімкнено Num Lock  (⇪ для Caps Lock — завжди)", _s.IndicatorNumLock);
         _indFull = Check(look, "Ховати в іграх і відео на весь екран", _s.IndicatorHideFullScreen);
-        AddLabel(look, "Під час набору мітка стоїть біля текстового курсора (якщо програма\nйого показує), інакше — біля вказівника миші.");
+        AddLabel(look, "Під час набору мітка стоїть біля текстового курсора (якщо програма\nйого показує), інакше — біля вказівника миші.\n\nІдея мітки — Language Cursor від SanekxArcs, дякуємо!");
 
         // ---- Додатково ----
         var extra = Page("Додатково");
