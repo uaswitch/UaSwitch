@@ -128,8 +128,9 @@ kbd{border:1px solid var(--line);border-bottom-width:2px}
 .cursor-tags{display:flex;gap:18px;justify-content:center}
 .shot-tray figcaption{color:var(--muted);font-size:14px;margin-top:8px}
 .gallery{display:flex;flex-direction:column;align-items:center;gap:14px}
-.seg{display:inline-flex;background:var(--code);border-radius:10px;padding:4px;gap:4px}
-.seg button{border:0;background:transparent;color:var(--muted);font:600 14px "Segoe UI",system-ui,sans-serif;padding:8px 14px;border-radius:7px;cursor:pointer}
+.seg{display:flex;flex-wrap:wrap;background:var(--code);border-radius:10px;padding:4px;gap:4px;margin-bottom:12px}
+.gallery{min-width:0}
+.seg button{border:0;background:transparent;color:var(--muted);font:600 14px "Segoe UI",system-ui,sans-serif;padding:7px 11px;border-radius:7px;cursor:pointer;white-space:nowrap}
 .seg button[aria-selected="true"]{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .shot{max-width:100%;height:auto;border-radius:10px;box-shadow:var(--shadow)}
 
@@ -196,7 +197,7 @@ footer a{color:inherit}
     <p class="sub">Працює у Word, Excel, Outlook, браузері, Telegram — будь-де, де ви набираєте текст.</p>
     <div class="grid">
       <div class="card"><div class="ico">⚡</div><h3>Виправляє на ходу</h3><p>Часто вже на 4-й літері: <code>ghbd</code> → <code>прив</code>, далі ви набираєте в правильній розкладці.</p></div>
-      <div class="card"><div class="ico">⌨️</div><h3>Вручну, коли треба</h3><p><kbd>Pause</kbd> або двічі <kbd>Shift</kbd> — останнє слово. Двічі <kbd>Ctrl</kbd> — виділений текст.</p></div>
+      <div class="card"><div class="ico">⌨️</div><h3>Вручну, коли треба</h3><p><kbd>Pause</kbd>, двічі <kbd>Shift</kbd> або двічі <kbd>Ctrl</kbd> — щойно набране слово, а якщо виділено текст — його.</p></div>
       <div class="card"><div class="ico">↩️</div><h3>Легко скасувати</h3><p><kbd>Backspace</kbd> одразу після виправлення повертає як було й запам'ятовує слово.</p></div>
       <div class="card"><div class="ico">ʼ</div><h3>Апостроф і ґ</h3><p><code>мясо</code> → <code>м'ясо</code>, <code>гудзик</code> → <code>ґудзик</code>, <code>агрус</code> → <code>аґрус</code>. Повний словник української: «бюро» й «Гордон» не чіпає. Працює й у Word.</p></div>
       <div class="card"><div class="ico">,</div><h3>Коми і регістр</h3><p><code>знаю де він</code> → <code>знаю, де він</code>, <code>так. добре</code> → <code>так. Добре</code>, <code>пРИВІТ</code> → <code>Привіт</code>.</p></div>
@@ -331,6 +332,9 @@ footer a{color:inherit}
   </div>
 </main>
 
+<section class="wrap" style="padding-top:0">
+  <p class="note" style="text-align:center">Дякуємо всім, хто допомагає: <a href="https://github.com/SanekxArcs/cursor-lang">Language Cursor</a> від <a href="https://github.com/SanekxArcs">SanekxArcs</a> — ідея мітки мови біля курсора; <a href="https://github.com/rashevskyv">rashevskyv</a> — клавіші на вибір замість Pause; і кожному, хто пише відгуки в Threads та на GitHub.</p>
+</section>
 <footer>
   <div class="wrap">
     Розробник — Ruslan Pichkar · <a href="privacy.html">Конфіденційність</a> · Код — ліцензія MIT · Частотні словники — <a href="https://github.com/rspeer/wordfreq">wordfreq</a>, CC BY-SA 4.0 ·
