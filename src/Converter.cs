@@ -30,7 +30,16 @@ internal sealed class Converter
         _settings = settings;
     }
 
-    // ---------- Останнє слово: вручну ----------
+    // ---------- Вручну: слово або виділене ----------
+
+    /// <summary>Щойно набрано слово (нічого не виділяли, не клікали) — виправляємо його, інакше виділений текст.</summary>
+    public void ConvertSmart()
+    {
+        var fg = Native.GetForegroundWindow();
+        bool typed;
+        lock (_monitor.Sync) typed = _monitor.Word.Keys.Count > 0 && _monitor.Word.Hwnd == fg;
+        if (typed) ConvertLastWord(); else ConvertSelection();
+    }
 
     public void ConvertLastWord()
     {
@@ -804,6 +813,7 @@ internal sealed class Converter
     {
         if (_busy) return;
         _busy = true;
+        var shifts = HeldShifts();
         try
         {
             // З меню іконки: повертаємо фокус у вікно, де виділено текст (але не на панель завдань)
@@ -818,7 +828,7 @@ internal sealed class Converter
             var backup = ClipboardBackup.Save();
 
             uint seq = Native.GetClipboardSequenceNumber();
-            SendChord(VK_CONTROL, VK_C);
+            SendChord(VK_CONTROL, VK_C, shifts);
             string? text = await WaitClipboardChange(seq, 700) ? TryGetText() : null;
             string? result = string.IsNullOrWhiteSpace(text) ? null : transform(text!);
             if (result == null || result == text)
@@ -830,19 +840,20 @@ internal sealed class Converter
             seq = Native.GetClipboardSequenceNumber();
             TrySetText(result);
             await WaitClipboardChange(seq, 300);
-            SendChord(VK_CONTROL, VK_V);
+            SendChord(VK_CONTROL, VK_V, shifts);
             await Task.Delay(250); // програма має встигнути прочитати буфер
             backup.Restore();
             _monitor.ResetWord();
         }
         catch { /* не заважаємо роботі користувача */ }
-        finally { _busy = false; }
+        finally { RestoreShifts(shifts); _busy = false; }
     }
 
     public async void ConvertSelection()
     {
         if (_busy || !_layouts.Ready) return;
         _busy = true;
+        var shifts = HeldShifts();
         try
         {
             await WaitModifiersReleased();
@@ -850,7 +861,7 @@ internal sealed class Converter
             var backup = ClipboardBackup.Save();
 
             uint seq = Native.GetClipboardSequenceNumber();
-            SendChord(VK_CONTROL, VK_C);
+            SendChord(VK_CONTROL, VK_C, shifts);
             if (!await WaitClipboardChange(seq, 700)) { backup.Restore(); return; }
 
             string? text = TryGetText();
@@ -864,7 +875,7 @@ internal sealed class Converter
                 seq = Native.GetClipboardSequenceNumber();
                 TrySetText(converted);
                 await WaitClipboardChange(seq, 300);
-                SendChord(VK_CONTROL, VK_V);
+                SendChord(VK_CONTROL, VK_V, shifts);
                 await Task.Delay(250); // програма має встигнути прочитати буфер
                 SwitchLayout(fg, toUa ? _layouts.Ua : _layouts.En);
             }
@@ -872,7 +883,7 @@ internal sealed class Converter
             _monitor.ResetWord();
         }
         catch { /* не заважаємо роботі користувача */ }
-        finally { _busy = false; }
+        finally { RestoreShifts(shifts); _busy = false; }
     }
 
     // ---------- Допоміжне ----------
@@ -910,9 +921,18 @@ internal sealed class Converter
         if (focus != fg) Native.PostMessage(fg, Native.WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl); // деякі програми слухають лише головне вікно
     }
 
+    /// <summary>Які Shift зараз натиснуті. Їх не чекаємо: на час Ctrl+C / Ctrl+V знімаємо (SendChord) і повертаємо (RestoreShifts).</summary>
+    private ushort[] HeldShifts() => !_monitor.ShiftHeld ? Array.Empty<ushort>()
+        : new ushort[] { 0xA0, 0xA1 }.Where(v => (Native.GetAsyncKeyState(v) & 0x8000) != 0).ToArray();
+
+    private void RestoreShifts(ushort[] shifts)
+    {
+        if (shifts.Length > 0 && _monitor.ShiftHeld) Send(shifts.Select(v => Key(v, false)).ToList()); // ще тримають — повертаємо
+    }
+
     private static async Task WaitModifiersReleased()
     {
-        int[] mods = { 0x10, 0x11, 0x12, 0x5B, 0x5C };
+        int[] mods = { 0x11, 0x12, 0x5B, 0x5C };
         for (int i = 0; i < 100; i++)
         {
             if (mods.All(v => (Native.GetAsyncKeyState(v) & 0x8000) == 0)) return;
@@ -955,9 +975,11 @@ internal sealed class Converter
         }
     }
 
-    private static void SendChord(ushort mod, ushort key)
+    private static void SendChord(ushort mod, ushort key, ushort[] shifts)
     {
         var inputs = new List<Native.INPUT>();
+        // Shift автоповторюється, поки його тримають, тож знімаємо його перед кожним Ctrl+клавіша (інакше вийде Ctrl+Shift+C)
+        foreach (var s in shifts) inputs.Add(Key(s, true));
         inputs.Add(Key(mod, false));
         inputs.Add(Key(key, false));
         inputs.Add(Key(key, true));
