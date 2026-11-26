@@ -16,7 +16,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly Converter _converter;
     private readonly NotifyIcon _tray;
     private readonly System.Windows.Forms.Timer _timer;
-    private readonly ToolStripMenuItem _miEnabled, _miAutoMode, _miExcludeApp, _miAppLang;
+    private readonly ToolStripMenuItem _miEnabled, _miAutoMode, _miExcludeApp, _miAppLang, _miTranslit, _miAmount, _miCase;
     private readonly LangIndicator _indicator;
     private IntPtr _langHwnd;
     private readonly int _ownPid = Process.GetCurrentProcess().Id;
@@ -62,8 +62,7 @@ internal sealed class TrayApp : ApplicationContext
         _monitor.ApostropheOnSpaceRequested += _converter.ApostropheOnSpace;
         _monitor.LayoutToggleRequested += _converter.ToggleLayout;
         _monitor.ReplaceOnEnterRequested += _converter.ReplaceOnEnter;
-        _monitor.LastWordRequested += _converter.ConvertLastWord;
-        _monitor.SelectionRequested += _converter.ConvertSelection;
+        _monitor.ConvertRequested += _converter.ConvertSmart;
         _monitor.AutoCheckRequested += _converter.AutoCheck;
         _monitor.EarlyCheckRequested += _converter.EarlyCheck;
         _monitor.WordStarted += () =>
@@ -72,7 +71,6 @@ internal sealed class TrayApp : ApplicationContext
             if (_settings.SkipPasswords) PasswordGuard.Warmup(Native.GetForegroundWindow());
         };
         _monitor.IsExcludedWindow = hwnd => _converter.IsExcludedApp(hwnd, out _) || GamePaused();
-        _monitor.OwnHotkeys = new uint[] { 'T', 'S', 'R' };
         _converter.Notify += (title, text) => { _pendingRelease = null; _lastException = null; _tray.ShowBalloonTip(5000, title, text, ToolTipIcon.Info); };
         _hotkeys = new HotkeyWindow(id =>
         {
@@ -105,9 +103,12 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(_miExcludeApp);
         menu.Items.Add(_miAppLang);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Транслітерувати виділене  (Ctrl+Alt+T)", null, (_, _) => _converter.TransliterateSelection(_monitor.LastWindow));
-        menu.Items.Add("Сума прописом  (Ctrl+Alt+S)", null, (_, _) => _converter.AmountSelection(_monitor.LastWindow));
-        menu.Items.Add("Змінити регістр  (Ctrl+Alt+R)", null, (_, _) => _converter.CycleCase(_monitor.LastWindow));
+        _miTranslit = new ToolStripMenuItem("", null, (_, _) => _converter.TransliterateSelection(_monitor.LastWindow));
+        _miAmount = new ToolStripMenuItem("", null, (_, _) => _converter.AmountSelection(_monitor.LastWindow));
+        menu.Items.Add(_miTranslit);
+        menu.Items.Add(_miAmount);
+        _miCase = new ToolStripMenuItem("", null, (_, _) => _converter.CycleCase(_monitor.LastWindow));
+        menu.Items.Add(_miCase);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Налаштування…", null, (_, _) => ShowSettings());
         menu.Items.Add("Довідка", null, (_, _) => ShowHelp());
@@ -192,6 +193,9 @@ internal sealed class TrayApp : ApplicationContext
         _miEnabled.Checked = _settings.Enabled;
         _miAutoMode.Checked = _settings.AutoMode;
         _miAutoMode.Enabled = _settings.Enabled;
+        _miTranslit.Text = $"Транслітерувати виділене  (Ctrl+Alt+{Settings.KeyName(_settings.TranslitKey)})";
+        _miAmount.Text = $"Сума прописом  (Ctrl+Alt+{Settings.KeyName(_settings.AmountKey)})";
+        _miCase.Text = $"Змінити регістр  (Ctrl+Alt+{Settings.KeyName(_settings.CaseKey)})";
         if (_lastApp == null)
         {
             _miExcludeApp.Text = "Не виправляти в цій програмі";
@@ -308,6 +312,7 @@ internal sealed class TrayApp : ApplicationContext
             _settingsForm?.Close();
             ExitThread();
         };
+        _settingsForm.CaptureChanged += on => _monitor.HotkeyCapture = on;
         _settingsForm.FormClosed += (_, _) =>
         {
             _settingsForm = null;
@@ -321,13 +326,15 @@ internal sealed class TrayApp : ApplicationContext
     {
         _monitor.Enabled = _settings.Enabled;
         _monitor.PauseHotkeys = _settings.PauseHotkeys;
+        _monitor.PauseKey = _settings.PauseKey;
         _monitor.DoubleShift = _settings.DoubleShift;
         _monitor.DoubleCtrl = _settings.DoubleCtrl;
         _monitor.AutoMode = _settings.AutoMode;
         _monitor.CapsSwitch = _settings.CapsSwitch;
-        _hotkeys?.Set(1, _settings.HotkeyTranslit && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, 'T');
-        _hotkeys?.Set(2, _settings.HotkeyAmount && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, 'S');
-        _hotkeys?.Set(3, _settings.HotkeyCase && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, 'R');
+        _hotkeys?.Set(1, _settings.HotkeyTranslit && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, (char)_settings.TranslitKey);
+        _hotkeys?.Set(2, _settings.HotkeyAmount && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, (char)_settings.AmountKey);
+        _hotkeys?.Set(3, _settings.HotkeyCase && _settings.Enabled, Native.MOD_CONTROL | Native.MOD_ALT, (char)_settings.CaseKey);
+        _monitor.OwnHotkeys = new uint[] { (uint)_settings.TranslitKey, (uint)_settings.AmountKey, (uint)_settings.CaseKey };
         _monitor.ReplaceEnabled = _settings.AutoReplace;
         _indicator?.Apply();
         StickyKeys.Set(_settings.NoStickyPrompt && _settings.DoubleShift && _settings.Enabled);
@@ -580,7 +587,7 @@ internal sealed class TrayApp : ApplicationContext
         catch (Exception e) { Log.Write("Посилання: " + e.Message); }
     }
 
-    private static void ShowHelp() => MessageBox.Show(
+    private void ShowHelp() { string key = Settings.KeyName(_settings.PauseKey); MessageBox.Show(
         "Автоматичний режим: слово, набране не в тій розкладці,\n" +
         "виправляється після пробілу. Не так? Натисніть Backspace\n" +
         "одразу — виправлення скасується, а слово потрапить у винятки.\n\n" +
@@ -590,11 +597,10 @@ internal sealed class TrayApp : ApplicationContext
         "Caps Lock), ПРивіт → Привіт, велика літера після крапки.\n" +
         "Апостроф: мясо → м'ясо, обєкт → об'єкт.\n\n" +
         "Вручну:\n" +
-        "•  Pause або двічі Shift — виправити останнє слово\n" +
-        "   (натисніть ще раз, щоб повернути як було)\n" +
-        "•  Виділіть текст, потім Shift+Pause або двічі Ctrl —\n" +
-        "   виправити виділений фрагмент\n\n" +
-        "•  Ctrl+Alt+R — регістр слова чи виділеного: малі → ВЕЛИКІ → З великої\n\n" +
+        $"•  {key}, двічі Shift або двічі Ctrl — виправити щойно\n" +
+        "   набране слово, а якщо виділено текст — його\n" +
+        "   (натисніть ще раз, щоб повернути слово як було)\n\n" +
+        $"•  Ctrl+Alt+{Settings.KeyName(_settings.CaseKey)} — регістр слова чи виділеного: малі → ВЕЛИКІ → З великої\n\n" +
         "Автозаміна: скорочення + пробіл або Enter → ваш текст\n" +
         "(список — у налаштуваннях; готові .дата і .час).\n" +
         "Мітка мови біля курсора й вигляд іконки — вкладка «Вигляд».\n" +
@@ -608,7 +614,7 @@ internal sealed class TrayApp : ApplicationContext
         "Набраний текст ніде не зберігається і нікуди не передається.\n" +
         "На диск записуються лише налаштування, винятки й автозаміна.\n\n" +
         "Розробник: Ruslan Pichkar · uaswitch.github.io/UaSwitch",
-        "UaSwitch — довідка", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        "UaSwitch — довідка", MessageBoxButtons.OK, MessageBoxIcon.Information); }
 
     protected override void ExitThreadCore()
     {

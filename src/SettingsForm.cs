@@ -69,14 +69,26 @@ internal sealed class SettingsForm : Form
 
         // ---- Гарячі клавіші ----
         var keys = Page("Гарячі клавіші");
-        _pause = Check(keys, "Pause — останнє слово,  Shift+Pause — виділений текст", _s.PauseHotkeys);
-        _dShift = Check(keys, "Двічі Shift — виправити останнє слово", _s.DoubleShift);
-        _dCtrl = Check(keys, "Двічі Ctrl — виправити виділений текст", _s.DoubleCtrl);
+        _pause = Check(keys, "", _s.PauseHotkeys);
+        KeyRow(keys, _pause, () => _s.PauseKey, v => _s.PauseKey = v, Settings.IsValidPauseKey, "Клавіша",
+               "Підійдуть F1–F24, Pause, Scroll Lock, Insert, Menu — вони не друкують текст.",
+               n => $"{n} — виправити слово (або виділений текст)");
+        _dShift = Check(keys, "Двічі Shift — виправити слово (або виділений текст)", _s.DoubleShift);
+        _dCtrl = Check(keys, "Двічі Ctrl — те саме", _s.DoubleCtrl);
         _capsSwitch = Check(keys, "Caps Lock перемикає мову  (Shift+Caps — великі літери)", _s.CapsSwitch);
-        _translit = Check(keys, "Ctrl+Alt+T — транслітерація  (Шевченко → Shevchenko)", _s.HotkeyTranslit);
-        _amount = Check(keys, "Ctrl+Alt+S — сума прописом  (1250,50 → Одна тисяча…)", _s.HotkeyAmount);
-        _case = Check(keys, "Ctrl+Alt+R — регістр  (привіт → ПРИВІТ → Привіт)", _s.HotkeyCase);
-        AddLabel(keys, "\nТранслітерація — за постановою КМУ №55 (як у паспорті).\n" +
+        _translit = Check(keys, "", _s.HotkeyTranslit);
+        KeyRow(keys, _translit, () => _s.TranslitKey, v => _s.TranslitKey = v,
+               v => Settings.IsValidLetterKey(v) && v != _s.AmountKey && v != _s.CaseKey, "Літера", "Підійде літера A–Z або цифра, відмінна від іншої гарячої клавіші.",
+               n => $"Ctrl+Alt+{n} — транслітерація  (Шевченко → Shevchenko)");
+        _amount = Check(keys, "", _s.HotkeyAmount);
+        KeyRow(keys, _amount, () => _s.AmountKey, v => _s.AmountKey = v,
+               v => Settings.IsValidLetterKey(v) && v != _s.TranslitKey && v != _s.CaseKey, "Літера", "Підійде літера A–Z або цифра, відмінна від іншої гарячої клавіші.",
+               n => $"Ctrl+Alt+{n} — сума прописом  (1250,50 → Одна тисяча…)");
+        _case = Check(keys, "", _s.HotkeyCase);
+        KeyRow(keys, _case, () => _s.CaseKey, v => _s.CaseKey = v,
+               v => Settings.IsValidLetterKey(v) && v != _s.TranslitKey && v != _s.AmountKey, "Літера", "Підійде літера A–Z або цифра, відмінна від іншої гарячої клавіші.",
+               n => $"Ctrl+Alt+{n} — регістр  (привіт → ПРИВІТ → Привіт)");
+        AddLabel(keys, "\nЯкщо щойно набрано слово — виправляється воно,\nінакше виділений текст.\n\nТранслітерація — за постановою КМУ №55 (як у паспорті).\n" +
                        "Сума прописом — у гривнях і копійках, для актів і рахунків.\n" +
                        "Регістр — останнього слова або виділеного тексту.\n" +
                        "Усі три працюють і з меню іконки.\n\n" +
@@ -114,7 +126,7 @@ internal sealed class SettingsForm : Form
         _indBig = Check(look, "Більша мітка", _s.IndicatorBig);
         _indNum = Check(look, "Показувати # , коли ввімкнено Num Lock  (⇪ для Caps Lock — завжди)", _s.IndicatorNumLock);
         _indFull = Check(look, "Ховати в іграх і відео на весь екран", _s.IndicatorHideFullScreen);
-        AddLabel(look, "Під час набору мітка стоїть біля текстового курсора (якщо програма\nйого показує), інакше — біля вказівника миші.");
+        AddLabel(look, "Під час набору мітка стоїть біля текстового курсора (якщо програма\nйого показує), інакше — біля вказівника миші.\n\nІдея мітки — Language Cursor від SanekxArcs, дякуємо!");
 
         // ---- Додатково ----
         var extra = Page("Додатково");
@@ -227,6 +239,66 @@ internal sealed class SettingsForm : Form
         _replace.SetAll(_replaceList.Items.Cast<ListViewItem>()
             .Select(i => new KeyValuePair<string, string>(i.Text, (string)i.Tag)));
     }
+
+    // ---------- Вибір клавіші ----------
+
+    /// <summary>Вікно чекає клавішу: хук програми нічого не поглинає (інакше Pause чи F-клавіша не дійшли б сюди).</summary>
+    public event Action<bool>? CaptureChanged;
+    private Button? _capBtn;
+    private Action<int>? _capSet;
+    private Func<int, bool>? _capValid;
+    private string _capHint = "";
+    private Action? _capRefresh;
+
+    private void KeyRow(TabPage p, CheckBox check, Func<int> get, Action<int> set, Func<int, bool> valid,
+                        string caption, string hint, Func<string, string> text)
+    {
+        var btn = new Button { AutoSize = true, MinimumSize = new Size(150, 28), Margin = new Padding(0, 0, 0, 2) };
+        void Refresh() { string n = Settings.KeyName(get()); check.Text = text(n); btn.Text = n + "   ·   змінити…"; }
+        Refresh();
+        btn.Click += (_, _) => BeginCapture(btn, v => { set(v); Refresh(); Save(); }, valid, hint, Refresh);
+        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(24, 0, 0, 4) };
+        row.Controls.Add(new Label { Text = caption + ":", AutoSize = true, Margin = new Padding(3, 7, 3, 3) });
+        row.Controls.Add(btn);
+        Flow(p).Controls.Add(row);
+    }
+
+    private void BeginCapture(Button btn, Action<int> set, Func<int, bool> valid, string hint, Action refresh)
+    {
+        EndCapture();
+        _capBtn = btn; _capSet = set; _capValid = valid; _capHint = hint; _capRefresh = refresh;
+        btn.Text = "Натисніть клавішу…  (Esc — скасувати)";
+        CaptureChanged?.Invoke(true);
+    }
+
+    private void EndCapture()
+    {
+        if (_capBtn == null) return;
+        _capBtn = null;
+        _capRefresh?.Invoke();
+        CaptureChanged?.Invoke(false);
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (_capBtn == null || (keyData & Keys.Modifiers) != 0) return base.ProcessCmdKey(ref msg, keyData);
+        var key = keyData & Keys.KeyCode;
+        if (key is Keys.ShiftKey or Keys.ControlKey or Keys.Menu or Keys.LWin or Keys.RWin) return true; // самі модифікатори не рахуємо
+        if (key == Keys.Escape) { EndCapture(); return true; }
+        int vk = (int)key;
+        if (!_capValid!(vk))
+        {
+            MessageBox.Show(this, "Ця клавіша не підходить.\n" + _capHint, "UaSwitch", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return true;
+        }
+        var set = _capSet!;
+        EndCapture();
+        set(vk);
+        return true;
+    }
+
+    protected override void OnDeactivate(EventArgs e) { EndCapture(); base.OnDeactivate(e); }
+    protected override void OnFormClosed(FormClosedEventArgs e) { EndCapture(); base.OnFormClosed(e); }
 
     // ---------- Автозаміна: редактор ----------
 
